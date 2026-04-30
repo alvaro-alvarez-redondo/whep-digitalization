@@ -67,27 +67,24 @@ source_postpro_scripts <- function(
     "25-postpro_diagnostics"
   )
 
-  script_names <- unlist(
+  # build full script paths using here::here for consistency
+  script_paths <- unlist(
     lapply(stage_dirs, function(stage_dir) {
-      stage_path <- fs::path(pipeline_root, stage_dir)
+      stage_path <- here::here("r", "2-postpro_pipeline", stage_dir)
       files <- list.files(stage_path, pattern = "\\.R$", full.names = FALSE)
-      if (length(files) == 0L) {
-        return(character(0))
-      }
+      if (length(files) == 0L) return(character(0))
       files <- sort(files)
-      fs::path(stage_dir, files)
+      vapply(files, function(f) here::here("r", "2-postpro_pipeline", stage_dir, f), character(1))
     }),
     use.names = FALSE
   )
 
-  missing_scripts <- script_names[!file.exists(fs::path(pipeline_root, script_names))]
+  missing_scripts <- script_paths[!file.exists(script_paths)]
   if (length(missing_scripts) > 0L) {
     cli::cli_abort(c("Missing post-processing scripts:", paste0("- ", missing_scripts)))
   }
 
-  purrr::walk(script_names, function(script_name) {
-    source_postpro_script(fs::path(pipeline_root, script_name))
-  })
+  purrr::walk(script_paths, function(p) source_postpro_script(p))
 
   return(invisible(TRUE))
 }
