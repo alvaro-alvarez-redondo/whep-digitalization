@@ -3,26 +3,51 @@
 
 if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
   source(
-    here::here("r", "0-general_pipeline", "01-setup.R"),
+    here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"),
+    echo = FALSE
+  )
+  source(
+    here::here("r", "0-general_pipeline", "01-setup", "01-config.R"),
+    echo = FALSE
+  )
+  source(
+    here::here("r", "0-general_pipeline", "01-setup", "01-directories.R"),
     echo = FALSE
   )
 }
 
 
-import_scripts <- c(
-  "10-file_io.R",
-  "11-reading.R",
-  "12-transform.R",
-  "13-validate_log.R",
-  "15-output.R"
+## Build ordered list of import-stage scripts and source them
+import_stage_dirs <- c(
+  "10-file_io",
+  "11-reading",
+  "12-transform",
+  "13-output"
 )
 
-purrr::walk(
-  import_scripts,
-  \(script_name) {
-    source(here::here("r", "1-import_pipeline", script_name), echo = FALSE)
-  }
+# collect R scripts from each stage directory in alphabetical order
+import_scripts <- unlist(
+  lapply(import_stage_dirs, function(d) {
+    stage_path <- here::here("r", "1-import_pipeline", d)
+    files <- list.files(stage_path, pattern = "\\.R$", full.names = FALSE)
+    if (length(files) == 0) return(character(0))
+    files <- sort(files)
+    file.path(d, files)
+  }),
+  use.names = FALSE
 )
+
+# fail early if any expected script is missing (helps surface refactor gaps)
+missing_scripts <- import_scripts[!file.exists(here::here("r", "1-import_pipeline", import_scripts))]
+if (length(missing_scripts) > 0) {
+  cli::cli_abort(c("Missing import pipeline scripts:", paste0("- ", missing_scripts)))
+}
+
+# Always source the current implementations to pick up refactors and avoid
+# stale function checks; source in-stage order to respect dependencies.
+for (script_name in import_scripts) {
+  source(here::here("r", "1-import_pipeline", script_name), echo = FALSE)
+}
 
 #' @title run import pipeline
 #' @description run the complete import pipeline by discovering source files,
