@@ -4,58 +4,9 @@
 # required directories.
 
 if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
-  source(
-    here::here("r", "0-general_pipeline", "01-setup.R"),
-    echo = FALSE
-  )
+  source(here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"), echo = FALSE)
 }
 
-
-#' @title source general scripts
-#' @description validates a character vector of script names, resolves each
-#' script path from `scripts/0-general_pipeline`, validates file existence, sources
-#' each script, and returns sourced paths invisibly. scripts whose sentinel
-#' functions are already defined are skipped for faster repeated runs.
-#' @param script_names character vector with one or more script filenames,
-#' validated with `checkmate::assert_character(any.missing = false, min.len = 1)`.
-#' @return invisible character vector of sourced script paths.
-#' @importFrom checkmate assert_character assert_file_exists
-#' @importFrom here here
-#' @importFrom base source
-#' @examples
-#' source_general_scripts(c("00-dependencies.R", "01-setup.R"))
-source_general_scripts <- function(script_names) {
-  checkmate::assert_character(script_names, any.missing = FALSE, min.len = 1)
-
-  # sentinel functions must match the primary export of each general script.
-  # update this mapping when script contents change.
-  sentinel_functions <- list(
-    "00-dependencies.R" = "check_dependencies",
-    "01-setup.R" = "load_pipeline_config",
-    "02-helpers.R" = "normalize_string"
-  )
-
-  script_paths <- vapply(
-    script_names,
-    function(name) here::here("r", "0-general_pipeline", name),
-    character(1),
-    USE.NAMES = FALSE
-  )
-
-  for (i in seq_along(script_names)) {
-    sentinel <- sentinel_functions[[script_names[i]]]
-    if (
-      !is.null(sentinel) &&
-        exists(sentinel, mode = "function", envir = .GlobalEnv)
-    ) {
-      next
-    }
-    checkmate::assert_file_exists(script_paths[i])
-    source(script_paths[i], echo = FALSE)
-  }
-
-  return(invisible(script_paths))
-}
 
 #' @title run general pipeline
 #' @description executes the general pipeline bootstrap by sourcing helper
@@ -75,32 +26,70 @@ run_general_pipeline <- function(
 ) {
   checkmate::assert_string(dataset_name, min.chars = 1)
   pipeline_constants <- get_pipeline_constants()
-  general_scripts <- pipeline_constants$script_names$general
 
-  total_steps <- 5
+  general_settings <- pipeline_constants$general_pipeline
+  total_steps <- general_settings$total_steps
+  progress_messages <- general_settings$progress_messages
 
   progressr::handlers(progressr::handler_txtprogressbar(
-    width = 40,
+    width = general_settings$progress_bar_width,
     clear = FALSE
   ))
 
   config <- progressr::with_progress({
     progress <- progressr::progressor(along = seq_len(total_steps))
 
-    source_general_scripts(general_scripts)
-    progress("general pipeline: sourcing general scripts")
+    # dynamically collect stage scripts in the general pipeline in-order
+    general_stage_dirs <- c("00-dependencies", "01-setup", "02-helpers")
 
-    check_dependencies(required_packages)
-    progress("general pipeline: checking dependencies")
+    general_scripts <- unlist(
+      lapply(general_stage_dirs, function(d) {
+        stage_path <- here::here("r", "0-general_pipeline", d)
+        files <- list.files(stage_path, pattern = "\\.R$", full.names = FALSE)
+        if (length(files) == 0) return(character(0))
+        files <- sort(files)
+        file.path(d, files)
+      }),
+      use.names = FALSE
+    )
 
-    load_dependencies(required_packages)
-    progress("general pipeline: loading dependencies")
+    # fail early if any expected script is missing
+    missing_scripts <- general_scripts[!file.exists(here::here("r", "0-general_pipeline", general_scripts))]
+    if (length(missing_scripts) > 0) {
+      cli::cli_abort(c("Missing general pipeline scripts:", paste0("- ", missing_scripts)))
+    }
+
+    # source dependencies first
+    dep_scripts <- general_scripts[grepl("^00-dependencies/", general_scripts)]
+    for (script_name in dep_scripts) {
+      source(here::here("r", "0-general_pipeline", script_name), echo = FALSE)
+    }
+    progress(progress_messages$source_scripts)
+
+    # check/load dependencies
+    check_dependencies(pipeline_constants$dependencies$required_packages)
+    progress(progress_messages$check_dependencies)
+
+    load_dependencies(pipeline_constants$dependencies$required_packages)
+    progress(progress_messages$load_dependencies)
+
+    # source setup scripts
+    setup_scripts <- general_scripts[grepl("^01-setup/", general_scripts)]
+    for (script_name in setup_scripts) {
+      source(here::here("r", "0-general_pipeline", script_name), echo = FALSE)
+    }
 
     config <- load_pipeline_config(dataset_name = dataset_name)
-    progress("general pipeline: loading pipeline configuration")
+    progress(progress_messages$load_config)
+
+    # source helper scripts
+    helper_scripts <- general_scripts[grepl("^02-helpers/", general_scripts)]
+    for (script_name in helper_scripts) {
+      source(here::here("r", "0-general_pipeline", script_name), echo = FALSE)
+    }
 
     create_required_directories(config$paths)
-    progress("general pipeline: creating required directories")
+    progress(progress_messages$create_dirs)
 
     config
   })
