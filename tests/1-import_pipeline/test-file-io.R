@@ -2,7 +2,13 @@
 # unit tests for R/1-import_pipeline/10-file_io.R
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "10-file_io.R"), echo = FALSE)
+import_scripts <- c(
+  "10-file_io/10-metadata.R",
+  "10-file_io/10-discovery.R"
+)
+purrr::walk(import_scripts, \(script_name) {
+  source(here::here("r", "1-import_pipeline", script_name), echo = FALSE)
+})
 
 
 # --- build_empty_file_metadata -----------------------------------------------
@@ -49,7 +55,7 @@ testthat::test_that("extract_file_metadata extracts file names and paths", {
 })
 
 
-testthat::test_that("extract_file_metadata extracts yearbook and product in single pass", {
+testthat::test_that("extract_file_metadata extracts yearbook and commodity in single pass", {
   root_dir <- build_temp_dir("whep-file-io-meta-")
   raw_dir <- file.path(root_dir, "raw")
   dir.create(raw_dir, recursive = TRUE)
@@ -79,9 +85,9 @@ testthat::test_that("extract_file_metadata extracts yearbook and product in sing
   testthat::expect_true(is.data.frame(result))
   testthat::expect_equal(nrow(result), 2L)
   testthat::expect_true("yearbook" %in% names(result))
-  testthat::expect_true("product" %in% names(result))
+  testthat::expect_true("commodity" %in% names(result))
   testthat::expect_true(all(!is.na(result$yearbook)))
-  testthat::expect_true(all(!is.na(result$product)))
+  testthat::expect_true(all(!is.na(result$commodity)))
   testthat::expect_identical(result$yearbook, c("yb_2019", "yb_2020"))
 })
 

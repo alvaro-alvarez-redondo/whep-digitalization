@@ -37,9 +37,10 @@ renv::snapshot()
 
 ## 4. Dependency Management
 
-- Runtime dependencies and load/check helpers are defined in `R/0-general_pipeline/00-dependencies.R`.
-- Project setup constants and configuration constructors are defined in `R/0-general_pipeline/01-setup.R`.
-- Shared helpers are defined in `R/0-general_pipeline/02-helpers.R`.
+- Runtime dependencies are organized under `r/0-general_pipeline/00-dependencies/`.
+- Core configuration constants live in `r/0-general_pipeline/01-setup/01-constants.R`.
+- Configuration and directory constructors live in `r/0-general_pipeline/01-setup/01-config.R` and `r/0-general_pipeline/01-setup/01-directories.R`.
+- Shared helpers are organized under `r/0-general_pipeline/02-helpers/`.
 - Dependency installation and version locking are expected to be managed via `renv`.
 
 ## 5. Quick Start (deterministic example)
@@ -71,7 +72,7 @@ Core stage entry points used by the orchestrator:
 
 - `run_general_pipeline(dataset_name = get_pipeline_constants()$dataset_default_name)`
 - `run_import_pipeline(config)`
-- `run_postpro_pipeline_batch(raw_dt, config, dataset_name, unit_column, value_column, product_column)`
+- `run_postpro_pipeline_batch(raw_dt, config, dataset_name, unit_column, value_column, commodity_column)`
 - `run_export_pipeline(config, data_objects = NULL, overwrite = TRUE, env = .GlobalEnv)`
 
 Auto-run wrappers:
@@ -87,16 +88,16 @@ Contract helpers:
 
 ## 7. Architecture Overview
 
-- `R/0-general_pipeline/`
-  - `00-dependencies.R`: dependency registry/check/load
-  - `01-setup.R`: constants and configuration
-  - `02-helpers.R`: shared utility functions
+- `r/0-general_pipeline/`
+  - `00-dependencies/`: dependency validation, installation, load, audit modules
+  - `01-setup/`: constants, config, and directory modules
+  - `02-helpers/`: focused helper modules by responsibility
   - `run_general_pipeline.R`: stage bootstrap
-- `R/1-import_pipeline/`: file IO, reading, transforms, validation, import runner
-- `R/2-postpro_pipeline/`: audit, post-processing utilities, rule engine, clean, standardize units, harmonize, diagnostics, post-processing runner
-- `R/3-export_pipeline/`: processed-data and unique-list exporters, export runner
-- `R/run_pipeline.R`: global orchestrator
-- `tests/testthat/R/`: deterministic `testthat` suites
+- `r/1-import_pipeline/`: file IO, reading, transforms, validation, import runner
+- `r/2-postpro_pipeline/`: audit, post-processing utilities, rule engine, clean, standardize units, harmonize, diagnostics, post-processing runner
+- `r/3-export_pipeline/`: processed-data and unique-list exporters, export runner
+- `r/run_pipeline.R`: global orchestrator
+- `tests/testthat/scripts/` and `tests/0-general_pipeline/`: deterministic `testthat` suites
 
 ## 8. Engineering Standards
 
@@ -175,7 +176,7 @@ testthat::test_dir(here::here("tests", "testthat", "r"), reporter = "summary")
 
 Coverage notes:
 
-- Tests include layer detection, post-processing rule handling, schema contracts, compatibility aliases, and pipeline path validation.
+- Tests include layer detection, post-processing rule handling, schema contracts, and pipeline path validation.
 - Formal coverage report artifacts are not committed in this repository.
 
 ## 12. CI/CD
@@ -188,17 +189,17 @@ Recommended baseline CI pipeline:
 2. Execute `testthat` suite
 3. Fail on any non-zero test result
 
-## 13. Backward Compatibility Policy
+## 13. Compatibility Policy
 
-- Preserve function signatures and return schemas for existing stage runners and wrappers.
-- Maintain compatibility aliases when renaming symbols.
-- When incompatible changes are unavoidable, provide wrappers and deprecation path before removal.
+- Backward compatibility is not preserved for wrapper files or legacy loader entrypoints.
+- Consumers should source the exact modules they depend on.
+- Keep function signatures and return schemas stable where feasible.
 
 ## 14. Contributing
 
 - Keep changes scoped and deterministic.
 - Update/add tests with every behavior or contract change.
-- Reuse centralized constants from `01-setup.R` for options, script names, and object names.
+- Reuse centralized constants from `r/0-general_pipeline/01-setup/01-constants.R` for options, script names, and object names.
 - Avoid introducing implicit global-state dependencies outside orchestration entry points.
 
 ## 15. License

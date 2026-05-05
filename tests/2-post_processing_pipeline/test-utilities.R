@@ -3,11 +3,7 @@
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "21-postpro_utilities.R"
-  ),
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 
@@ -89,7 +85,7 @@ testthat::test_that("read_rule_table reads CSV rule files", {
   file_path <- file.path(root_dir, "rules.csv")
 
   rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",
@@ -109,7 +105,7 @@ testthat::test_that("read_rule_table reads Excel rule files", {
   file_path <- file.path(root_dir, "rules.xlsx")
 
   rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",
@@ -129,7 +125,7 @@ testthat::test_that("read_rule_table reads all matching Excel worksheets", {
   file_path <- file.path(root_dir, "rules.xlsx")
 
   sheet_one <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",
@@ -166,7 +162,7 @@ testthat::test_that("read_rule_table reads all matching Excel worksheets", {
   testthat::expect_equal(nrow(result), 2L)
   testthat::expect_equal(
     as.character(result$column_source),
-    c("product", "unit")
+    c("commodity", "unit")
   )
   testthat::expect_false("note" %in% names(result))
 })
@@ -199,7 +195,7 @@ testthat::test_that("load_stage_rule_payloads discovers rule files for a stage",
   config <- build_test_config()
 
   rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",

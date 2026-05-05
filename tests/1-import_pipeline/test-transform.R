@@ -2,12 +2,19 @@
 # unit tests for R/1-import_pipeline/12-transform.R
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "10-file_io.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "11-reading.R"), echo = FALSE)
-source(
-  here::here("r", "1-import_pipeline", "12-transform.R"),
-  echo = FALSE
+import_scripts <- c(
+  "10-file_io/10-metadata.R",
+  "10-file_io/10-discovery.R",
+  "11-reading/11-read-utils.R",
+  "11-reading/11-sheet-read.R",
+  "11-reading/11-batching.R",
+  "12-transform/12-transform-utils.R",
+  "12-transform/12-reshape.R",
+  "12-transform/12-processing.R"
 )
+purrr::walk(import_scripts, \(script_name) {
+  source(here::here("r", "1-import_pipeline", script_name), echo = FALSE)
+})
 
 
 # --- identify_year_columns ---------------------------------------------------
@@ -49,8 +56,8 @@ testthat::test_that("identify_year_columns returns empty for non-year columns", 
 
 testthat::test_that("normalize_key_fields adds missing base columns as NA", {
   dt <- data.table::data.table(
-    product = c("wheat", "rice"),
-    variable = c("production", "trade")
+    commodity = c("wheat", "rice"),
+    variable = c("commodityion", "trade")
   )
   config <- build_test_config()
 
@@ -63,8 +70,8 @@ testthat::test_that("normalize_key_fields adds missing base columns as NA", {
 
 testthat::test_that("normalize_key_fields normalizes hemisphere when present", {
   dt <- data.table::data.table(
-    product = "wheat",
-    variable = "production",
+    commodity = "wheat",
+    variable = "commodityion",
     continent = "Asia",
     country = "Japan",
     hemisphere = "Northern Hemisphere"
@@ -79,8 +86,8 @@ testthat::test_that("normalize_key_fields normalizes hemisphere when present", {
 
 testthat::test_that("normalize_key_fields succeeds when hemisphere column is absent", {
   dt <- data.table::data.table(
-    product = "wheat",
-    variable = "production",
+    commodity = "wheat",
+    variable = "commodityion",
     continent = "Asia",
     country = "Japan"
   )
@@ -119,8 +126,8 @@ testthat::test_that("reshape_to_long converts wide to long format", {
   dt <- data.table::data.table(
     continent = c("Asia", "Europe"),
     country = c("Japan", "France"),
-    product = c("wheat", "rice"),
-    variable = c("production", "trade"),
+    commodity = c("wheat", "rice"),
+    variable = c("commodityion", "trade"),
     unit = c("tonnes", "tonnes"),
     footnotes = c(NA_character_, NA_character_),
     `2020` = c("100", "200"),
@@ -141,8 +148,8 @@ testthat::test_that("reshape_to_long preserves hemisphere column when present", 
     hemisphere = c("northern", "southern"),
     continent = c("Asia", "Europe"),
     country = c("Japan", "France"),
-    product = c("wheat", "rice"),
-    variable = c("production", "trade"),
+    commodity = c("wheat", "rice"),
+    variable = c("commodityion", "trade"),
     unit = c("tonnes", "tonnes"),
     footnotes = c(NA_character_, NA_character_),
     `2020` = c("100", "200"),
@@ -165,8 +172,8 @@ testthat::test_that("reshape_to_long succeeds without hemisphere column", {
   dt <- data.table::data.table(
     continent = c("Asia", "Europe"),
     country = c("Japan", "France"),
-    product = c("wheat", "rice"),
-    variable = c("production", "trade"),
+    commodity = c("wheat", "rice"),
+    variable = c("commodityion", "trade"),
     unit = c("tonnes", "tonnes"),
     footnotes = c(NA_character_, NA_character_),
     `2020` = c("100", "200")
@@ -251,12 +258,12 @@ testthat::test_that("transform_files_list drops NA value rows before binding", {
   file_list_dt <- data.table::data.table(
     file_name = c("file_a.xlsx", "file_b.xlsx"),
     yearbook = c("yb_2024", "yb_2024"),
-    product = c("wheat", "rice")
+    commodity = c("wheat", "rice")
   )
 
   wide_a <- data.table::data.table(
-    product = "wheat",
-    variable = "production",
+    commodity = "wheat",
+    variable = "commodityion",
     unit = "tonnes",
     continent = "Asia",
     country = "Japan",
@@ -265,7 +272,7 @@ testthat::test_that("transform_files_list drops NA value rows before binding", {
     `2021` = NA_character_
   )
   wide_b <- data.table::data.table(
-    product = "rice",
+    commodity = "rice",
     variable = "trade",
     unit = "tonnes",
     continent = "Europe",
@@ -290,8 +297,8 @@ testthat::test_that("transform_file_dt filters NA value rows from long output", 
   config <- build_test_config()
 
   wide_dt <- data.table::data.table(
-    product = "wheat",
-    variable = "production",
+    commodity = "wheat",
+    variable = "commodityion",
     unit = "tonnes",
     continent = "Asia",
     country = "Japan",
@@ -320,8 +327,8 @@ testthat::test_that("reshape_to_long converts data.frame input to data.table", {
   df <- data.frame(
     continent = c("Asia", "Europe"),
     country = c("Japan", "France"),
-    product = c("wheat", "rice"),
-    variable = c("production", "trade"),
+    commodity = c("wheat", "rice"),
+    variable = c("commodityion", "trade"),
     unit = c("tonnes", "tonnes"),
     footnotes = c(NA_character_, NA_character_),
     check.names = FALSE,

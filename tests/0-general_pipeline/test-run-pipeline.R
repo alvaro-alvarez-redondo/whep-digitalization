@@ -66,7 +66,7 @@ testthat::test_that("build_postpro_iteration_summary formats deterministic suffi
 
   testthat::expect_identical(
     summary_suffix,
-    " | clean loops: 1 | harmonize loops: 5"
+    " | cleans: 1 | harmonizatios: 5"
   )
 })
 

@@ -3,7 +3,7 @@
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 source(
-  here::here("r", "2-postpro_pipeline", "20-data_audit.R"),
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 
@@ -77,8 +77,8 @@ testthat::test_that("audit_data_output skips Excel generation when no findings",
     value = c("10", "20"),
     continent = c("Asia", "Europe"),
     country = c("Japan", "France"),
-    product = c("wheat", "wheat"),
-    variable = c("production", "production"),
+    commodity = c("wheat", "wheat"),
+    variable = c("commodityion", "commodityion"),
     unit = c("tonnes", "tonnes"),
     year = c("2020", "2021"),
     notes = c(NA_character_, NA_character_),
@@ -101,8 +101,8 @@ testthat::test_that("audit_data_output creates Excel when findings exist", {
     value = c("10", "bad"),
     continent = c("Asia", "Europe"),
     country = c("Japan", "France"),
-    product = c("wheat", "wheat"),
-    variable = c("production", "production"),
+    commodity = c("wheat", "wheat"),
+    variable = c("commodityion", "commodityion"),
     unit = c("tonnes", "tonnes"),
     year = c("2020", "2021"),
     notes = c(NA_character_, NA_character_),

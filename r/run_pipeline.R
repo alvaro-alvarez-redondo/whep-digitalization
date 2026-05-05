@@ -1,6 +1,14 @@
 if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
   source(
-    here::here("r", "0-general_pipeline", "01-setup.R"),
+    here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"),
+    echo = FALSE
+  )
+  source(
+    here::here("r", "0-general_pipeline", "01-setup", "01-config.R"),
+    echo = FALSE
+  )
+  source(
+    here::here("r", "0-general_pipeline", "01-setup", "01-directories.R"),
     echo = FALSE
   )
 }
@@ -80,9 +88,9 @@ build_postpro_iteration_summary <- function(env = .GlobalEnv) {
   loop_counts <- get_postpro_iteration_loop_counts(env = env)
 
   paste0(
-    " | clean loops: ",
+    " | cleans: ",
     format_postpro_iteration_count(loop_counts$clean),
-    " | harmonize loops: ",
+    " | harmonizatios: ",
     format_postpro_iteration_count(loop_counts$harmonize)
   )
 }

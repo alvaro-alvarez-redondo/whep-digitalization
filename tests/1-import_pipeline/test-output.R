@@ -2,11 +2,19 @@
 # unit tests for R/1-import_pipeline/15-output.R
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "10-file_io.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "11-reading.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "12-transform.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "13-validate_log.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "15-output.R"), echo = FALSE)
+import_scripts <- c(
+  "10-file_io/10-metadata.R",
+  "10-file_io/10-discovery.R",
+  "11-reading/11-read-utils.R",
+  "11-reading/11-sheet-read.R",
+  "11-reading/11-batching.R",
+  "12-transform/12-transform-utils.R",
+  "12-transform/12-reshape.R",
+  "12-transform/12-processing.R",
+  "13-output/13-validate.R",
+  "13-output/13-output.R"
+)
+purrr::walk(import_scripts, \(script_name) source(here::here("r", "1-import_pipeline", script_name), echo = FALSE))
 
 
 # --- validate_output_column_order --------------------------------------------

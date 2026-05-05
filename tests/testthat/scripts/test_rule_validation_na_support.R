@@ -5,35 +5,80 @@ options(
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 
 source(
-  here::here("r", "0-general_pipeline", "02-helpers.R"),
+  here::here("r", "0-general_pipeline", "02-helpers", "02-assertions.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-time-formatting.R"),
   echo = FALSE
 )
 source(
   here::here(
     "r",
-    "2-postpro_pipeline",
-    "21-postpro_utilities.R"
+    "0-general_pipeline",
+    "02-helpers",
+    "02-string-normalization.R"
   ),
   echo = FALSE
 )
 source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "23-postpro_rule_engine.R"
-  ),
+  here::here("r", "0-general_pipeline", "02-helpers", "02-numeric-coercion.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-token-extraction.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-data-table.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-export-validation.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-config-accessors.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-sorting.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-environment.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-checkpoints.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-data-cleaning.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-io-cache.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 
 testthat::test_that("validate_canonical_rules allows NA in value columns for clean stage", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     variable = c("Prod", "Prod"),
     unit = c("kg", "kg")
   )
 
   rules_dt <- data.table::data.table(
-    column_source = c("product", "product"),
+    column_source = c("commodity", "commodity"),
     value_source_raw = c(NA_character_, "Rice"),
     value_source = c(NA_character_, NA_character_),
     column_target = c("unit", "unit"),
@@ -53,7 +98,7 @@ testthat::test_that("validate_canonical_rules allows NA in value columns for cle
 
 testthat::test_that("validate_canonical_rules remains fail-fast for structural required columns", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat"),
+    commodity = c("Wheat"),
     unit = c("kg")
   )
 
@@ -79,12 +124,12 @@ testthat::test_that("validate_canonical_rules remains fail-fast for structural r
 
 testthat::test_that("apply_conditional_rule_group matches NA keys deterministically", {
   dataset_dt <- data.table::data.table(
-    product = c(NA_character_, "Wheat"),
+    commodity = c(NA_character_, "Wheat"),
     unit = c(NA_character_, "kg")
   )
 
   group_rules <- data.table::data.table(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = NA_character_,
     column_target = "unit",
     value_target_raw = NA_character_,
@@ -108,17 +153,17 @@ testthat::test_that("apply_conditional_rule_group matches NA keys deterministica
 
 testthat::test_that("validate_canonical_rules allows NA in value columns for harmonize stage", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     variable = c("Prod", "Prod")
   )
 
   rules_dt <- data.table::data.table(
-    column_source = c("product", "product"),
+    column_source = c("commodity", "commodity"),
     value_source_raw = c(NA_character_, "Rice"),
     value_source = c(NA_character_, NA_character_),
     column_target = c("variable", "variable"),
     value_target_raw = c(NA_character_, "Prod"),
-    value_target = c(NA_character_, "Production")
+    value_target = c(NA_character_, "commodityion")
   )
 
   testthat::expect_invisible(
@@ -134,12 +179,12 @@ testthat::test_that("validate_canonical_rules allows NA in value columns for har
 
 testthat::test_that("empty target clean value is applied as NA_character_", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg")
   )
 
   group_rules <- data.table::data.table(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",

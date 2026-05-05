@@ -4,11 +4,25 @@ options(
   whep.checkpointing.enabled = FALSE
 )
 
-source(here::here("r", "0-general_pipeline", "01-setup.R"), echo = FALSE)
-source(
-  here::here("r", "0-general_pipeline", "02-helpers.R"),
-  echo = FALSE
-)
+source(here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "01-setup", "01-config.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "01-setup", "01-directories.R"), echo = FALSE)
+
+# explicit helper modules
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-assertions.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-time-formatting.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-string-normalization.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-numeric-coercion.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-token-extraction.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-data-table.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-export-validation.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-config-accessors.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-sorting.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-environment.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-checkpoints.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-data-cleaning.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-io-cache.R"), echo = FALSE)
 
 
 # --- get_pipeline_constants caching ---

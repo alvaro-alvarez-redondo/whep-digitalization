@@ -3,15 +3,7 @@
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "21-postpro_utilities.R"
-  ),
-  echo = FALSE
-)
-source(
-  here::here("r", "2-postpro_pipeline", "24-standardize_units.R"),
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 
@@ -42,17 +34,17 @@ testthat::test_that("read_all_standardize_rule_files supports multi-sheet workbo
     workbook_path,
     list(
       standardize_unit = data.frame(
-        product_key = "wheat",
+        commodity_key = "wheat",
         unit_source = "kg",
         unit_target = "g",
-        unit_multiplier = 1000,
+        unit_factor = 1000,
         unit_offset = 0
       ),
       master_unit = data.frame(
-        product_key = "wheat",
+        commodity_key = "wheat",
         unit_source = "kg",
         unit_target = "g",
-        unit_multiplier = 999,
+        unit_factor = 999,
         unit_offset = 0
       )
     )
@@ -66,7 +58,7 @@ testthat::test_that("read_all_standardize_rule_files supports multi-sheet workbo
     payload$rules$source_rule_sheet[[1]],
     "standardize_unit"
   )
-  testthat::expect_equal(payload$rules$unit_multiplier[[1]], 1000)
+  testthat::expect_equal(payload$rules$unit_factor[[1]], 1000)
 })
 
 testthat::test_that("read_all_standardize_rule_files reads all non-excluded matching sheets", {
@@ -81,24 +73,24 @@ testthat::test_that("read_all_standardize_rule_files reads all non-excluded matc
     workbook_path,
     list(
       standardize_unit = data.frame(
-        product_key = "wheat",
+        commodity_key = "wheat",
         unit_source = "kg",
         unit_target = "g",
-        unit_multiplier = 1000,
+        unit_factor = 1000,
         unit_offset = 0
       ),
       secondary_rules = data.frame(
-        product_key = "rice",
+        commodity_key = "rice",
         unit_source = "tonnes",
         unit_target = "kg",
-        unit_multiplier = 1000,
+        unit_factor = 1000,
         unit_offset = 0
       ),
       master_unit = data.frame(
-        product_key = "rice",
+        commodity_key = "rice",
         unit_source = "tonnes",
         unit_target = "kg",
-        unit_multiplier = 1,
+        unit_factor = 1,
         unit_offset = 0
       ),
       notes = data.frame(note = "helper sheet")
@@ -119,18 +111,18 @@ testthat::test_that("read_all_standardize_rule_files reads all non-excluded matc
 
 testthat::test_that("validate_rule_schema accepts complete schema", {
   rule_dt <- data.table::data.table(
-    product_key = "wheat",
+    commodity_key = "wheat",
     unit_source = "kg",
     unit_target = "g",
-    unit_multiplier = 1000,
+    unit_factor = 1000,
     unit_offset = 0
   )
 
   required <- c(
-    "product_key",
+    "commodity_key",
     "unit_source",
     "unit_target",
-    "unit_multiplier",
+    "unit_factor",
     "unit_offset"
   )
 
@@ -138,22 +130,22 @@ testthat::test_that("validate_rule_schema accepts complete schema", {
 })
 
 testthat::test_that("validate_rule_schema errors on missing columns", {
-  rule_dt <- data.table::data.table(product_key = "wheat")
+  rule_dt <- data.table::data.table(commodity_key = "wheat")
 
   testthat::expect_error(
-    validate_rule_schema(rule_dt, c("product_key", "missing_col"), "test"),
+    validate_rule_schema(rule_dt, c("commodity_key", "missing_col"), "test"),
     "Missing required columns"
   )
 })
 
 testthat::test_that("validate_rule_schema errors on NA in required columns", {
   rule_dt <- data.table::data.table(
-    product_key = NA_character_,
+    commodity_key = NA_character_,
     unit_source = "kg"
   )
 
   testthat::expect_error(
-    validate_rule_schema(rule_dt, c("product_key", "unit_source"), "test"),
+    validate_rule_schema(rule_dt, c("commodity_key", "unit_source"), "test"),
     "missing values"
   )
 })
@@ -163,7 +155,7 @@ testthat::test_that("validate_rule_schema errors on NA in required columns", {
 
 testthat::test_that("normalize_conversion_rule_columns renames legacy columns", {
   legacy_dt <- data.table::data.table(
-    product = "wheat",
+    commodity = "wheat",
     from_unit = "kg",
     to_unit = "g",
     factor = 1000,
@@ -172,26 +164,26 @@ testthat::test_that("normalize_conversion_rule_columns renames legacy columns", 
 
   result <- normalize_conversion_rule_columns(legacy_dt)
 
-  testthat::expect_true("product_key" %in% names(result))
+  testthat::expect_true("commodity_key" %in% names(result))
   testthat::expect_true("unit_source" %in% names(result))
   testthat::expect_true("unit_target" %in% names(result))
-  testthat::expect_true("unit_multiplier" %in% names(result))
+  testthat::expect_true("unit_factor" %in% names(result))
   testthat::expect_true("unit_offset" %in% names(result))
 })
 
 testthat::test_that("normalize_conversion_rule_columns preserves modern column names", {
   modern_dt <- data.table::data.table(
-    product_key = "wheat",
+    commodity_key = "wheat",
     unit_source = "kg",
     unit_target = "g",
-    unit_multiplier = 1000,
+    unit_factor = 1000,
     unit_offset = 0
   )
 
   result <- normalize_conversion_rule_columns(modern_dt)
 
   testthat::expect_true("unit_source" %in% names(result))
-  testthat::expect_true("unit_multiplier" %in% names(result))
+  testthat::expect_true("unit_factor" %in% names(result))
 })
 
 
@@ -199,22 +191,22 @@ testthat::test_that("normalize_conversion_rule_columns preserves modern column n
 
 testthat::test_that("validate_conversion_rules accepts valid rules", {
   rules_dt <- data.table::data.table(
-    product_key = c("wheat", "rice"),
+    commodity_key = c("wheat", "rice"),
     unit_source = c("kg", "kg"),
     unit_target = c("g", "g"),
-    unit_multiplier = c(1000, 1000),
+    unit_factor = c(1000, 1000),
     unit_offset = c(0, 0)
   )
 
   testthat::expect_invisible(validate_conversion_rules(rules_dt))
 })
 
-testthat::test_that("validate_conversion_rules errors on duplicated product_key/unit_source", {
+testthat::test_that("validate_conversion_rules errors on duplicated commodity_key/unit_source", {
   rules_dt <- data.table::data.table(
-    product_key = c("wheat", "wheat"),
+    commodity_key = c("wheat", "wheat"),
     unit_source = c("kg", "kg"),
     unit_target = c("g", "mg"),
-    unit_multiplier = c(1000, 1000000),
+    unit_factor = c(1000, 1000000),
     unit_offset = c(0, 0)
   )
 
@@ -223,22 +215,22 @@ testthat::test_that("validate_conversion_rules errors on duplicated product_key/
 
 testthat::test_that("validate_conversion_rules detects chained conversions", {
   rules_dt <- data.table::data.table(
-    product_key = c("wheat", "wheat"),
+    commodity_key = c("wheat", "wheat"),
     unit_source = c("kg", "g"),
     unit_target = c("g", "mg"),
-    unit_multiplier = c(1000, 1000),
+    unit_factor = c(1000, 1000),
     unit_offset = c(0, 0)
   )
 
   testthat::expect_error(validate_conversion_rules(rules_dt), "chained")
 })
 
-testthat::test_that("validate_conversion_rules errors on non-finite unit_multiplier", {
+testthat::test_that("validate_conversion_rules errors on non-finite unit_factor", {
   rules_dt <- data.table::data.table(
-    product_key = "wheat",
+    commodity_key = "wheat",
     unit_source = "kg",
     unit_target = "g",
-    unit_multiplier = Inf,
+    unit_factor = Inf,
     unit_offset = 0
   )
 
@@ -250,18 +242,18 @@ testthat::test_that("validate_conversion_rules errors on non-finite unit_multipl
 
 testthat::test_that("prepare_standardize_rules materializes numeric columns and keys", {
   raw_dt <- data.table::data.table(
-    product_key = "wheat",
+    commodity_key = "wheat",
     unit_source = "kg",
     unit_target = "g",
-    unit_multiplier = 1000,
+    unit_factor = 1000,
     unit_offset = 0
   )
 
   result <- prepare_standardize_rules(raw_dt)
 
-  testthat::expect_true("unit_multiplier_num" %in% names(result))
+  testthat::expect_true("unit_factor_num" %in% names(result))
   testthat::expect_true("unit_offset_num" %in% names(result))
-  testthat::expect_true("product_match_key" %in% names(result))
+  testthat::expect_true("commodity_match_key" %in% names(result))
   testthat::expect_true("unit_source_key" %in% names(result))
 })
 
@@ -276,16 +268,16 @@ testthat::test_that("prepare_standardize_rules handles empty input", {
 
 testthat::test_that("apply_standardize_rules converts values", {
   mapped_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     value = c("2", "3")
   )
 
   prepared_rules_dt <- prepare_standardize_rules(data.table::data.table(
-    product_key = "wheat",
+    commodity_key = "wheat",
     unit_source = "kg",
     unit_target = "g",
-    unit_multiplier = 1000,
+    unit_factor = 1000,
     unit_offset = 0
   ))
 
@@ -294,7 +286,7 @@ testthat::test_that("apply_standardize_rules converts values", {
     prepared_rules_dt = prepared_rules_dt,
     unit_column = "unit",
     value_column = "value",
-    product_column = "product"
+    commodity_column = "commodity"
   )
 
   testthat::expect_named(
@@ -312,16 +304,16 @@ testthat::test_that("apply_standardize_rules converts values", {
 
 testthat::test_that("apply_standardize_rules with unit_offset applies conversion offset", {
   mapped_dt <- data.table::data.table(
-    product = "temp_sensor",
+    commodity = "temp_sensor",
     unit = "celsius",
     value = "100"
   )
 
   prepared_rules_dt <- prepare_standardize_rules(data.table::data.table(
-    product_key = "temp_sensor",
+    commodity_key = "temp_sensor",
     unit_source = "celsius",
     unit_target = "fahrenheit",
-    unit_multiplier = 1.8,
+    unit_factor = 1.8,
     unit_offset = 32
   ))
 
@@ -330,7 +322,7 @@ testthat::test_that("apply_standardize_rules with unit_offset applies conversion
     prepared_rules_dt = prepared_rules_dt,
     unit_column = "unit",
     value_column = "value",
-    product_column = "product"
+    commodity_column = "commodity"
   )
 
   testthat::expect_equal(result$data$value[[1]], 212)
@@ -339,7 +331,7 @@ testthat::test_that("apply_standardize_rules with unit_offset applies conversion
 
 testthat::test_that("apply_standardize_rules zero-rule path is deterministic", {
   mapped_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", ""),
     value = c("2", "")
   )
@@ -349,7 +341,7 @@ testthat::test_that("apply_standardize_rules zero-rule path is deterministic", {
     prepared_rules_dt = data.table::data.table(),
     unit_column = "unit",
     value_column = "value",
-    product_column = "product"
+    commodity_column = "commodity"
   )
 
   testthat::expect_identical(result$matched_count, 0L)
@@ -359,7 +351,7 @@ testthat::test_that("apply_standardize_rules zero-rule path is deterministic", {
 
 testthat::test_that("apply_standardize_rules errors for non-numeric values", {
   mapped_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     unit = "kg",
     value = "not_numeric"
   )
@@ -370,24 +362,24 @@ testthat::test_that("apply_standardize_rules errors for non-numeric values", {
       prepared_rules_dt = data.table::data.table(),
       unit_column = "unit",
       value_column = "value",
-      product_column = "product"
+      commodity_column = "commodity"
     ),
     "non-numeric"
   )
 })
 
-testthat::test_that("apply_standardize_rules uses 'all products' fallback for unmatched products", {
+testthat::test_that("apply_standardize_rules uses 'all commodity' fallback for unmatched commodity", {
   mapped_dt <- data.table::data.table(
-    product = c("Wheat", "Corn", "Rice"),
+    commodity = c("Wheat", "Corn", "Rice"),
     unit = c("kg", "kg", "kg"),
     value = c("2", "3", "5")
   )
 
   prepared_rules_dt <- prepare_standardize_rules(data.table::data.table(
-    product_key = c("wheat", "all products"),
+    commodity_key = c("wheat", "all commodity"),
     unit_source = c("kg", "kg"),
     unit_target = c("g", "g"),
-    unit_multiplier = c(1000, 1000),
+    unit_factor = c(1000, 1000),
     unit_offset = c(0, 0)
   ))
 
@@ -396,7 +388,7 @@ testthat::test_that("apply_standardize_rules uses 'all products' fallback for un
     prepared_rules_dt = prepared_rules_dt,
     unit_column = "unit",
     value_column = "value",
-    product_column = "product"
+    commodity_column = "commodity"
   )
 
   testthat::expect_identical(result$matched_count, 3L)
@@ -406,18 +398,18 @@ testthat::test_that("apply_standardize_rules uses 'all products' fallback for un
   testthat::expect_equal(result$data$value[[3]], 5000)
 })
 
-testthat::test_that("apply_standardize_rules attributes fallback matches to all-products rule keys", {
+testthat::test_that("apply_standardize_rules attributes fallback matches to all-commodity rule keys", {
   mapped_dt <- data.table::data.table(
-    product = c("Wheat", "Corn", "Rice"),
+    commodity = c("Wheat", "Corn", "Rice"),
     unit = c("kg", "kg", "kg"),
     value = c("2", "3", "5")
   )
 
   prepared_rules_dt <- prepare_standardize_rules(data.table::data.table(
-    product_key = c("wheat", "all products"),
+    commodity_key = c("wheat", "all commodity"),
     unit_source = c("kg", "kg"),
     unit_target = c("g", "g"),
-    unit_multiplier = c(1000, 1000),
+    unit_factor = c(1000, 1000),
     unit_offset = c(0, 0)
   ))
 
@@ -426,38 +418,38 @@ testthat::test_that("apply_standardize_rules attributes fallback matches to all-
     prepared_rules_dt = prepared_rules_dt,
     unit_column = "unit",
     value_column = "value",
-    product_column = "product"
+    commodity_column = "commodity"
   )
 
   keyed_counts <- result$matched_rule_counts[order(
-    rule_product_match_key,
-    applied_product_match_key
+    rule_commodity_match_key,
+    applied_commodity_match_key
   )]
 
   testthat::expect_equal(nrow(keyed_counts), 3L)
   testthat::expect_identical(
-    keyed_counts$rule_product_match_key,
-    c("all products", "all products", "wheat")
+    keyed_counts$rule_commodity_match_key,
+    c("all commodity", "all commodity", "wheat")
   )
   testthat::expect_identical(
-    keyed_counts$applied_product_match_key,
+    keyed_counts$applied_commodity_match_key,
     c("corn", "rice", "wheat")
   )
   testthat::expect_identical(keyed_counts$affected_rows, c(1L, 1L, 1L))
 })
 
-testthat::test_that("apply_standardize_rules prioritizes specific product rules over 'all products'", {
+testthat::test_that("apply_standardize_rules prioritizes specific commodity rules over 'all commodity'", {
   mapped_dt <- data.table::data.table(
-    product = c("egg", "milk", "wheat"),
+    commodity = c("egg", "milk", "wheat"),
     unit = c("1000 egg", "hectoliter", "kg"),
     value = c("2", "10", "5")
   )
 
   prepared_rules_dt <- prepare_standardize_rules(data.table::data.table(
-    product_key = c("egg", "all products", "all products"),
+    commodity_key = c("egg", "all commodity", "all commodity"),
     unit_source = c("1000 egg", "1000 egg", "kg"),
     unit_target = c("tonne", "tonne", "g"),
-    unit_multiplier = c(0.0539, 0.001, 1000),
+    unit_factor = c(0.0539, 0.001, 1000),
     unit_offset = c(0, 0, 0)
   ))
 
@@ -466,7 +458,7 @@ testthat::test_that("apply_standardize_rules prioritizes specific product rules 
     prepared_rules_dt = prepared_rules_dt,
     unit_column = "unit",
     value_column = "value",
-    product_column = "product"
+    commodity_column = "commodity"
   )
 
   testthat::expect_identical(result$matched_count, 2L)
@@ -476,18 +468,18 @@ testthat::test_that("apply_standardize_rules prioritizes specific product rules 
   testthat::expect_equal(result$data$unit[[3]], "g")
 })
 
-testthat::test_that("apply_standardize_rules 'all products' fallback with mixed specificity", {
+testthat::test_that("apply_standardize_rules 'all commodity' fallback with mixed specificity", {
   mapped_dt <- data.table::data.table(
-    product = c("coconut", "egg", "rice", "wheat"),
+    commodity = c("coconut", "egg", "rice", "wheat"),
     unit = c("count", "1000 egg", "kg", "kg"),
     value = c("1000", "100", "500", "2000")
   )
 
   prepared_rules_dt <- prepare_standardize_rules(data.table::data.table(
-    product_key = c("coconut", "egg", "all products", "all products"),
+    commodity_key = c("coconut", "egg", "all commodity", "all commodity"),
     unit_source = c("count", "1000 egg", "kg", "tonne"),
     unit_target = c("tonne", "tonne", "g", "kg"),
-    unit_multiplier = c(0.001, 0.0539, 1000, 1000),
+    unit_factor = c(0.001, 0.0539, 1000, 1000),
     unit_offset = c(0, 0, 0, 0)
   ))
 
@@ -496,7 +488,7 @@ testthat::test_that("apply_standardize_rules 'all products' fallback with mixed 
     prepared_rules_dt = prepared_rules_dt,
     unit_column = "unit",
     value_column = "value",
-    product_column = "product"
+    commodity_column = "commodity"
   )
 
   testthat::expect_identical(result$matched_count, 4L)
@@ -506,24 +498,24 @@ testthat::test_that("apply_standardize_rules 'all products' fallback with mixed 
   testthat::expect_equal(result$data$value[[4]], 2000000)
 })
 
-testthat::test_that("validate_conversion_rules allows chained rules when one is 'all products'", {
+testthat::test_that("validate_conversion_rules allows chained rules when one is 'all commodity'", {
   rules_dt <- data.table::data.table(
-    product_key = c("all products", "all products", "wheat"),
+    commodity_key = c("all commodity", "all commodity", "wheat"),
     unit_source = c("kg", "g", "kg"),
     unit_target = c("g", "mg", "g"),
-    unit_multiplier = c(1000, 1000, 1000),
+    unit_factor = c(1000, 1000, 1000),
     unit_offset = c(0, 0, 0)
   )
 
   testthat::expect_invisible(validate_conversion_rules(rules_dt))
 })
 
-testthat::test_that("validate_conversion_rules detects chained specific-product rules excluding 'all products'", {
+testthat::test_that("validate_conversion_rules detects chained specific-commodity rules excluding 'all commodity'", {
   rules_dt <- data.table::data.table(
-    product_key = c("wheat", "wheat", "all products"),
+    commodity_key = c("wheat", "wheat", "all commodity"),
     unit_source = c("kg", "g", "kg"),
     unit_target = c("g", "mg", "g"),
-    unit_multiplier = c(1000, 1000, 1000),
+    unit_factor = c(1000, 1000, 1000),
     unit_offset = c(0, 0, 0)
   )
 
@@ -535,10 +527,10 @@ testthat::test_that("validate_conversion_rules detects chained specific-product 
 
 testthat::test_that("build_standardize_layer_audit mirrors standardize workbook schema", {
   layer_rules_dt <- prepare_standardize_rules(data.table::data.table(
-    product_key = c("wheat", "all products"),
+    commodity_key = c("wheat", "all commodity"),
     unit_source = c("kg", "kg"),
     unit_target = c("g", "g"),
-    unit_multiplier = c(1000, 1000),
+    unit_factor = c(1000, 1000),
     unit_offset = c(0, 0),
     source_rule_sheet = c("standardize_unit", "standardize_unit"),
     source_rule_file = c(
@@ -548,8 +540,8 @@ testthat::test_that("build_standardize_layer_audit mirrors standardize workbook 
   ))
 
   matched_rule_counts_dt <- data.table::data.table(
-    rule_product_match_key = c("wheat", "all products", "all products"),
-    applied_product_match_key = c("wheat", "corn", "rice"),
+    rule_commodity_match_key = c("wheat", "all commodity", "all commodity"),
+    applied_commodity_match_key = c("wheat", "corn", "rice"),
     unit_source_key = c("kg", "kg", "kg"),
     affected_rows = c(1L, 1L, 1L)
   )
@@ -563,22 +555,22 @@ testthat::test_that("build_standardize_layer_audit mirrors standardize workbook 
   expected_columns <- c(
     "affected_rows",
     "rule_file_identifier",
-    "product_key",
+    "commodity_key",
     "unit_source",
     "unit_target",
-    "unit_multiplier",
+    "unit_factor",
     "unit_offset"
   )
 
   testthat::expect_identical(names(result), expected_columns)
   testthat::expect_equal(nrow(result), 3L)
-  testthat::expect_setequal(result$product_key, c("wheat", "corn", "rice"))
+  testthat::expect_setequal(result$commodity_key, c("wheat", "corn", "rice"))
 
-  all_products_rows <- result[product_key %in% c("corn", "rice")]
-  testthat::expect_equal(nrow(all_products_rows), 2L)
-  testthat::expect_true(all(all_products_rows$affected_rows == 1L))
-  testthat::expect_true(all(all_products_rows$unit_multiplier == 1000))
-  testthat::expect_true(all(all_products_rows$unit_offset == 0))
+  all_commodity_rows <- result[commodity_key %in% c("corn", "rice")]
+  testthat::expect_equal(nrow(all_commodity_rows), 2L)
+  testthat::expect_true(all(all_commodity_rows$affected_rows == 1L))
+  testthat::expect_true(all(all_commodity_rows$unit_factor == 1000))
+  testthat::expect_true(all(all_commodity_rows$unit_offset == 0))
 })
 
 
@@ -586,7 +578,7 @@ testthat::test_that("build_standardize_layer_audit mirrors standardize workbook 
 
 testthat::test_that("aggregate_standardized_rows sums duplicate groups", {
   dt <- data.table::data.table(
-    product = c("wheat", "wheat", "rice"),
+    commodity = c("wheat", "wheat", "rice"),
     unit = c("kg", "kg", "kg"),
     value = c(10, 20, 5)
   )
@@ -596,18 +588,18 @@ testthat::test_that("aggregate_standardized_rows sums duplicate groups", {
   testthat::expect_s3_class(result, "data.table")
   testthat::expect_equal(nrow(result), 2L)
   testthat::expect_equal(
-    result[product == "wheat"]$value,
+    result[commodity == "wheat"]$value,
     30
   )
   testthat::expect_equal(
-    result[product == "rice"]$value,
+    result[commodity == "rice"]$value,
     5
   )
 })
 
 testthat::test_that("aggregate_standardized_rows returns empty table unchanged", {
   dt <- data.table::data.table(
-    product = character(0),
+    commodity = character(0),
     unit = character(0),
     value = numeric(0)
   )
@@ -615,12 +607,12 @@ testthat::test_that("aggregate_standardized_rows returns empty table unchanged",
   result <- aggregate_standardized_rows(dt, "value")
 
   testthat::expect_equal(nrow(result), 0L)
-  testthat::expect_identical(names(result), c("product", "unit", "value"))
+  testthat::expect_identical(names(result), c("commodity", "unit", "value"))
 })
 
 testthat::test_that("aggregate_standardized_rows is idempotent", {
   dt <- data.table::data.table(
-    product = c("wheat", "rice"),
+    commodity = c("wheat", "rice"),
     unit = c("kg", "kg"),
     value = c(10, 5)
   )
@@ -633,7 +625,7 @@ testthat::test_that("aggregate_standardized_rows is idempotent", {
 
 testthat::test_that("aggregate_standardized_rows handles all-NA group", {
   dt <- data.table::data.table(
-    product = c("wheat", "wheat"),
+    commodity = c("wheat", "wheat"),
     unit = c("kg", "kg"),
     value = c(NA_real_, NA_real_)
   )
@@ -646,7 +638,7 @@ testthat::test_that("aggregate_standardized_rows handles all-NA group", {
 
 testthat::test_that("aggregate_standardized_rows sums non-NA with partial NA", {
   dt <- data.table::data.table(
-    product = c("wheat", "wheat"),
+    commodity = c("wheat", "wheat"),
     unit = c("kg", "kg"),
     value = c(10, NA_real_)
   )
@@ -659,19 +651,19 @@ testthat::test_that("aggregate_standardized_rows sums non-NA with partial NA", {
 
 testthat::test_that("aggregate_standardized_rows preserves column order", {
   dt <- data.table::data.table(
-    product = c("wheat", "wheat"),
+    commodity = c("wheat", "wheat"),
     value = c(10, 20),
     unit = c("kg", "kg")
   )
 
   result <- aggregate_standardized_rows(dt, "value")
 
-  testthat::expect_identical(names(result), c("product", "value", "unit"))
+  testthat::expect_identical(names(result), c("commodity", "value", "unit"))
 })
 
 testthat::test_that("aggregate_standardized_rows skips already-unique data", {
   dt <- data.table::data.table(
-    product = c("wheat", "rice"),
+    commodity = c("wheat", "rice"),
     unit = c("kg", "kg"),
     value = c(10, 5)
   )
@@ -683,7 +675,7 @@ testthat::test_that("aggregate_standardized_rows skips already-unique data", {
 
 testthat::test_that("aggregate_standardized_rows returns single row unchanged", {
   dt <- data.table::data.table(
-    product = "wheat",
+    commodity = "wheat",
     unit = "kg",
     value = 42
   )
@@ -703,7 +695,7 @@ testthat::test_that("aggregate_standardized_rows handles only-value-column edge 
 })
 
 testthat::test_that("aggregate_standardized_rows errors on missing value column", {
-  dt <- data.table::data.table(product = "wheat", unit = "kg")
+  dt <- data.table::data.table(commodity = "wheat", unit = "kg")
 
   testthat::expect_error(
     aggregate_standardized_rows(dt, "value"),
@@ -713,7 +705,7 @@ testthat::test_that("aggregate_standardized_rows errors on missing value column"
 
 testthat::test_that("aggregate_standardized_rows handles mixed column types", {
   dt <- data.table::data.table(
-    product = c("wheat", "wheat"),
+    commodity = c("wheat", "wheat"),
     year = as.Date(c("2020-01-01", "2020-01-01")),
     category = factor(c("a", "a")),
     value = c(10, 20)
@@ -732,7 +724,7 @@ testthat::test_that("aggregate_standardized_rows handles mixed column types", {
 
 testthat::test_that("extract_aggregated_rows returns only rows from duplicate groups", {
   dt <- data.table::data.table(
-    product = c("wheat", "wheat", "rice"),
+    commodity = c("wheat", "wheat", "rice"),
     unit = c("kg", "kg", "kg"),
     value = c(10, 20, 5)
   )
@@ -741,12 +733,12 @@ testthat::test_that("extract_aggregated_rows returns only rows from duplicate gr
 
   testthat::expect_s3_class(result, "data.table")
   testthat::expect_equal(nrow(result), 2L)
-  testthat::expect_true(all(result$product == "wheat"))
+  testthat::expect_true(all(result$commodity == "wheat"))
 })
 
 testthat::test_that("extract_aggregated_rows returns empty table when no duplicates", {
   dt <- data.table::data.table(
-    product = c("wheat", "rice"),
+    commodity = c("wheat", "rice"),
     unit = c("kg", "kg"),
     value = c(10, 5)
   )
@@ -754,12 +746,12 @@ testthat::test_that("extract_aggregated_rows returns empty table when no duplica
   result <- extract_aggregated_rows(dt, "value")
 
   testthat::expect_equal(nrow(result), 0L)
-  testthat::expect_identical(names(result), c("product", "unit", "value"))
+  testthat::expect_identical(names(result), c("commodity", "unit", "value"))
 })
 
 testthat::test_that("extract_aggregated_rows returns empty table for empty input", {
   dt <- data.table::data.table(
-    product = character(0),
+    commodity = character(0),
     unit = character(0),
     value = numeric(0)
   )
@@ -771,21 +763,21 @@ testthat::test_that("extract_aggregated_rows returns empty table for empty input
 
 testthat::test_that("extract_aggregated_rows preserves column order", {
   dt <- data.table::data.table(
-    product = c("wheat", "wheat"),
+    commodity = c("wheat", "wheat"),
     value = c(10, 20),
     unit = c("kg", "kg")
   )
 
   result <- extract_aggregated_rows(dt, "value")
 
-  testthat::expect_identical(names(result), c("product", "value", "unit"))
+  testthat::expect_identical(names(result), c("commodity", "value", "unit"))
 })
 
 
 # --- attach_standardize_diagnostics aggregation fields -----------------------
 
 testthat::test_that("attach_standardize_diagnostics includes aggregation fields", {
-  dt <- data.table::data.table(product = "wheat", value = 10)
+  dt <- data.table::data.table(commodity = "wheat", value = 10)
 
   result <- attach_standardize_diagnostics(
     standardized_dt = dt,
@@ -809,7 +801,7 @@ testthat::test_that("attach_standardize_diagnostics includes aggregation fields"
 })
 
 testthat::test_that("attach_standardize_diagnostics omits aggregation counts when disabled", {
-  dt <- data.table::data.table(product = "wheat", value = 10)
+  dt <- data.table::data.table(commodity = "wheat", value = 10)
 
   result <- attach_standardize_diagnostics(
     standardized_dt = dt,

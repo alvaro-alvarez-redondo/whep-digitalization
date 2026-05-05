@@ -1,6 +1,6 @@
 ---
 name: best-practices
-description: 'Enforce production-grade R script standards.'
+description: 'Enforce commodityion-grade R script standards.'
 ---
 
 ## Mandatory Actions
@@ -10,6 +10,8 @@ description: 'Enforce production-grade R script standards.'
 - Standardize diagnostics; deepen input validation; improve error messaging.
 - Reduce nesting; ensure deterministic behavior.
 - Remove backward compatibility constraints; update legacy behavior.
+- Remove unused code; optimize performance; enhance maintainability.
+- Split long scripts into smaller ones with a single responsibility.
 
 ## Constraints
 - No feature expansion.

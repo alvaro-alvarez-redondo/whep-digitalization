@@ -2,8 +2,14 @@
 # unit tests for R/1-import_pipeline/11-reading.R
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "10-file_io.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "11-reading.R"), echo = FALSE)
+import_scripts <- c(
+  "10-file_io/10-metadata.R",
+  "10-file_io/10-discovery.R",
+  "11-reading/11-read-utils.R",
+  "11-reading/11-sheet-read.R",
+  "11-reading/11-batching.R"
+)
+purrr::walk(import_scripts, \(script_name) source(here::here("r", "1-import_pipeline", script_name), echo = FALSE))
 
 
 # --- build_read_error --------------------------------------------------------

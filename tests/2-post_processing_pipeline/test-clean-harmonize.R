@@ -3,27 +3,7 @@
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "21-postpro_utilities.R"
-  ),
-  echo = FALSE
-)
-source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "23-postpro_rule_engine.R"
-  ),
-  echo = FALSE
-)
-source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "22-clean_harmonize_data.R"
-  ),
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 
@@ -58,7 +38,7 @@ testthat::test_that("run_cleaning_layer_batch applies clean rules", {
   config <- build_test_config()
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",
@@ -68,7 +48,7 @@ testthat::test_that("run_cleaning_layer_batch applies clean rules", {
   create_clean_rule_file(config, clean_rules)
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     stringsAsFactors = FALSE
   )
@@ -95,17 +75,17 @@ testthat::test_that("run_harmonize_layer_batch applies harmonize rules", {
   config <- build_test_config()
 
   harmonize_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "variable",
     value_target_raw = "Prod",
-    value_target = "Production",
+    value_target = "commodityion",
     stringsAsFactors = FALSE
   )
   create_harmonize_rule_file(config, harmonize_rules)
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     variable = c("Prod", "Prod"),
     stringsAsFactors = FALSE
   )
@@ -116,7 +96,7 @@ testthat::test_that("run_harmonize_layer_batch applies harmonize rules", {
     dataset_name = "demo"
   )
 
-  testthat::expect_equal(result$variable[[1]], "Production")
+  testthat::expect_equal(result$variable[[1]], "commodityion")
   testthat::expect_equal(result$variable[[2]], "Prod")
 })
 
@@ -127,7 +107,7 @@ testthat::test_that("clean and harmonize pipeline applies both stages sequential
   config <- build_test_config()
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",
@@ -137,17 +117,17 @@ testthat::test_that("clean and harmonize pipeline applies both stages sequential
   create_clean_rule_file(config, clean_rules)
 
   harmonize_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "variable",
     value_target_raw = "Prod",
-    value_target = "Production",
+    value_target = "commodityion",
     stringsAsFactors = FALSE
   )
   create_harmonize_rule_file(config, harmonize_rules)
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     variable = c("Prod", "Prod"),
     unit = c("kg", "kg"),
     stringsAsFactors = FALSE
@@ -165,7 +145,7 @@ testthat::test_that("clean and harmonize pipeline applies both stages sequential
   )
 
   testthat::expect_equal(harmonize$unit[[1]], "kilogram")
-  testthat::expect_equal(harmonize$variable[[1]], "Production")
+  testthat::expect_equal(harmonize$variable[[1]], "commodityion")
   testthat::expect_equal(harmonize$variable[[2]], "Prod")
 })
 
@@ -186,7 +166,7 @@ testthat::test_that("clean layer auto-creates missing rule-referenced columns", 
   create_clean_rule_file(config, clean_rules)
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     stringsAsFactors = FALSE
   )
 
@@ -208,7 +188,7 @@ testthat::test_that("clean stage applies optional source rewrites", {
   config <- build_test_config()
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     value_source = "Wheat clean",
     column_target = "unit",
@@ -219,7 +199,7 @@ testthat::test_that("clean stage applies optional source rewrites", {
   create_clean_rule_file(config, clean_rules)
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     stringsAsFactors = FALSE
   )
@@ -230,8 +210,8 @@ testthat::test_that("clean stage applies optional source rewrites", {
     dataset_name = "demo"
   )
 
-  testthat::expect_equal(result$product[[1]], "Wheat clean")
-  testthat::expect_equal(result$product[[2]], "Rice")
+  testthat::expect_equal(result$commodity[[1]], "Wheat clean")
+  testthat::expect_equal(result$commodity[[2]], "Rice")
   testthat::expect_equal(result$unit[[1]], "kilogram")
 })
 
@@ -245,7 +225,7 @@ testthat::test_that("clean stage blank source rewrite assigns NA on matched rows
     column_source = "continent",
     value_source_raw = "asia",
     value_source = "",
-    column_target = "product",
+    column_target = "commodity",
     value_target_raw = "wheat",
     value_target = "asia wheat",
     stringsAsFactors = FALSE
@@ -254,7 +234,7 @@ testthat::test_that("clean stage blank source rewrite assigns NA on matched rows
 
   input_dt <- data.frame(
     continent = c("asia", "europe"),
-    product = c("wheat", "wheat"),
+    commodity = c("wheat", "wheat"),
     stringsAsFactors = FALSE
   )
 
@@ -266,7 +246,7 @@ testthat::test_that("clean stage blank source rewrite assigns NA on matched rows
 
   testthat::expect_true(is.na(result$continent[[1]]))
   testthat::expect_equal(result$continent[[2]], "europe")
-  testthat::expect_equal(result$product[[1]], "asia wheat")
+  testthat::expect_equal(result$commodity[[1]], "asia wheat")
 })
 
 
@@ -276,10 +256,10 @@ testthat::test_that("when source and target columns are identical target rewrite
   config <- build_test_config()
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     value_source = "Wheat source",
-    column_target = "product",
+    column_target = "commodity",
     value_target_raw = "Wheat",
     value_target = "Wheat target",
     stringsAsFactors = FALSE
@@ -287,7 +267,7 @@ testthat::test_that("when source and target columns are identical target rewrite
   create_clean_rule_file(config, clean_rules)
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     stringsAsFactors = FALSE
   )
 
@@ -297,8 +277,8 @@ testthat::test_that("when source and target columns are identical target rewrite
     dataset_name = "demo"
   )
 
-  testthat::expect_equal(result$product[[1]], "Wheat target")
-  testthat::expect_equal(result$product[[2]], "Rice")
+  testthat::expect_equal(result$commodity[[1]], "Wheat target")
+  testthat::expect_equal(result$commodity[[2]], "Rice")
 })
 
 
@@ -310,7 +290,7 @@ testthat::test_that("harmonize stage applies optional source rewrites", {
   harmonize_rules <- data.frame(
     column_source = "variable",
     value_source_raw = "Prod",
-    value_source = "Production",
+    value_source = "commodityion",
     column_target = "unit",
     value_target_raw = "kg",
     value_target = "kilogram",
@@ -330,7 +310,7 @@ testthat::test_that("harmonize stage applies optional source rewrites", {
     dataset_name = "demo"
   )
 
-  testthat::expect_equal(result$variable[[1]], "Production")
+  testthat::expect_equal(result$variable[[1]], "commodityion")
   testthat::expect_equal(result$variable[[2]], "Import")
   testthat::expect_equal(result$unit[[1]], "kilogram")
 })
@@ -342,7 +322,7 @@ testthat::test_that("run_cleaning_layer_batch returns unchanged data with no rul
   config <- build_test_config()
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     stringsAsFactors = FALSE
   )
@@ -353,7 +333,7 @@ testthat::test_that("run_cleaning_layer_batch returns unchanged data with no rul
     dataset_name = "demo"
   )
 
-  testthat::expect_equal(result$product[[1]], "Wheat")
+  testthat::expect_equal(result$commodity[[1]], "Wheat")
   testthat::expect_equal(result$unit[[1]], "kg")
 })
 
@@ -700,6 +680,32 @@ testthat::test_that("clean and harmonize stages canonicalize notes/footnotes cel
   testthat::expect_equal(harmonize_result$footnotes[[1]], "fn_a; fn_b")
 })
 
+testthat::test_that("clean and harmonize stages drop all-NA footnotes after loops", {
+  config <- build_test_config()
+
+  input_dt <- data.frame(
+    unit = "kg",
+    notes = "existing note",
+    footnotes = NA_character_,
+    stringsAsFactors = FALSE
+  )
+
+  clean_result <- run_cleaning_layer_batch(
+    dataset_dt = input_dt,
+    config = config,
+    dataset_name = "demo"
+  )
+
+  harmonize_result <- run_harmonize_layer_batch(
+    dataset_dt = input_dt,
+    config = config,
+    dataset_name = "demo"
+  )
+
+  testthat::expect_false("footnotes" %in% names(clean_result))
+  testthat::expect_false("footnotes" %in% names(harmonize_result))
+})
+
 testthat::test_that("clean notes blank target condition is not wildcard", {
   config <- build_test_config()
   wildcard_token <- get_pipeline_constants()$postpro$rule_match_wildcard_token
@@ -782,7 +788,7 @@ testthat::test_that("clean footnote matched removal dominates overlapping unmatc
     column_source = c("footnotes", "footnotes"),
     value_source_raw = c("oil", "oil"),
     value_source = c("oil", ""),
-    column_target = c("product", "product"),
+    column_target = c("commodity", "commodity"),
     value_target_raw = c("olive", "olive: oil"),
     value_target = c("olive", "olive: oil"),
     stringsAsFactors = FALSE
@@ -795,7 +801,7 @@ testthat::test_that("clean footnote matched removal dominates overlapping unmatc
 
   input_dt <- data.frame(
     footnotes = "oil",
-    product = "olive: oil",
+    commodity = "olive: oil",
     stringsAsFactors = FALSE
   )
 
@@ -816,7 +822,7 @@ testthat::test_that("clean stage persists runtime cache artifact deterministical
   config <- build_test_config()
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",
@@ -826,7 +832,7 @@ testthat::test_that("clean stage persists runtime cache artifact deterministical
   create_clean_rule_file(config, clean_rules)
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     stringsAsFactors = FALSE
   )
@@ -857,7 +863,7 @@ testthat::test_that("clean stage payload bundle can be reloaded from disk cache"
   config <- build_test_config()
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",
@@ -867,7 +873,7 @@ testthat::test_that("clean stage payload bundle can be reloaded from disk cache"
   create_clean_rule_file(config, clean_rules)
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     stringsAsFactors = FALSE
   )
@@ -908,7 +914,7 @@ testthat::test_that("stage payload cache key changes when rule file contents cha
   config <- build_test_config()
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",
@@ -926,7 +932,7 @@ testthat::test_that("stage payload cache key changes when rule file contents cha
   updated_rules <- rbind(
     clean_rules,
     data.frame(
-      column_source = "product",
+      column_source = "commodity",
       value_source_raw = "Rice",
       column_target = "unit",
       value_target_raw = "kg",
@@ -953,7 +959,7 @@ testthat::test_that("harmonize stage inherits missing stage controls from defaul
   )
 
   harmonize_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     value_source = NA_character_,
     column_target = "unit",
@@ -968,7 +974,7 @@ testthat::test_that("harmonize stage inherits missing stage controls from defaul
   )
 
   input_dt <- data.frame(
-    product = "Wheat",
+    commodity = "Wheat",
     unit = "kg",
     stringsAsFactors = FALSE
   )

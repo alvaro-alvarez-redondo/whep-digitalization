@@ -3,31 +3,68 @@ options(
 )
 
 source(
-  here::here("r", "0-general_pipeline", "02-helpers.R"),
+  here::here("r", "0-general_pipeline", "02-helpers", "02-assertions.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-time-formatting.R"),
   echo = FALSE
 )
 source(
   here::here(
     "r",
-    "2-postpro_pipeline",
-    "21-postpro_utilities.R"
+    "0-general_pipeline",
+    "02-helpers",
+    "02-string-normalization.R"
   ),
   echo = FALSE
 )
 source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "23-postpro_rule_engine.R"
-  ),
+  here::here("r", "0-general_pipeline", "02-helpers", "02-numeric-coercion.R"),
   echo = FALSE
 )
 source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "22-clean_harmonize_data.R"
-  ),
+  here::here("r", "0-general_pipeline", "02-helpers", "02-token-extraction.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-data-table.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-export-validation.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-config-accessors.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-sorting.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-environment.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-checkpoints.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-data-cleaning.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-io-cache.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 
@@ -46,7 +83,7 @@ testthat::test_that("clean and harmonize layers apply deterministic rule payload
   dir.create(harmonize_dir, recursive = TRUE)
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "unit",
     value_target_raw = "kg",
@@ -55,15 +92,18 @@ testthat::test_that("clean and harmonize layers apply deterministic rule payload
   )
 
   harmonize_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     column_target = "variable",
     value_target_raw = "Prod",
-    value_target = "Production",
+    value_target = "commodityion",
     stringsAsFactors = FALSE
   )
 
-  readr::write_csv(clean_rules, file.path(clean_dir, "clean_rules_product.csv"))
+  readr::write_csv(
+    clean_rules,
+    file.path(clean_dir, "clean_rules_commodity.csv")
+  )
   readr::write_csv(
     harmonize_rules,
     file.path(harmonize_dir, "harmonize_rules_variable.csv")
@@ -81,7 +121,7 @@ testthat::test_that("clean and harmonize layers apply deterministic rule payload
   )
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     variable = c("Prod", "Prod"),
     unit = c("kg", "kg"),
     value = c("10", "20"),
@@ -103,7 +143,7 @@ testthat::test_that("clean and harmonize layers apply deterministic rule payload
   testthat::expect_equal(clean_dt$unit[[1]], "kilogram")
   testthat::expect_equal(clean_dt$unit[[2]], "kg")
 
-  testthat::expect_equal(harmonize_dt$variable[[1]], "Production")
+  testthat::expect_equal(harmonize_dt$variable[[1]], "commodityion")
   testthat::expect_equal(harmonize_dt$variable[[2]], "Prod")
 
   clean_audit <- attr(clean_dt, "layer_audit")
@@ -116,7 +156,7 @@ testthat::test_that("clean and harmonize layers apply deterministic rule payload
 
 testthat::test_that("stage-prefixed schemas are accepted by coerce_rule_schema", {
   raw_rule_dt <- data.frame(
-    clean_column_source = "product",
+    clean_column_source = "commodity",
     clean_value_source_raw = "Wheat",
     clean_column_target = "unit",
     clean_value_target_raw = "kg",
@@ -188,7 +228,7 @@ testthat::test_that("clean layer auto-creates missing rule-referenced columns", 
   )
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     variable = c("Prod", "Prod"),
     unit = c("kg", "kg"),
     stringsAsFactors = FALSE
@@ -222,7 +262,7 @@ testthat::test_that("clean stage applies optional source rewrites", {
   dir.create(harmonize_dir, recursive = TRUE)
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     value_source = "Wheat clean",
     column_target = "unit",
@@ -248,7 +288,7 @@ testthat::test_that("clean stage applies optional source rewrites", {
   )
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     stringsAsFactors = FALSE
   )
@@ -259,8 +299,8 @@ testthat::test_that("clean stage applies optional source rewrites", {
     dataset_name = "demo"
   )
 
-  testthat::expect_equal(clean_dt$product[[1]], "Wheat clean")
-  testthat::expect_equal(clean_dt$product[[2]], "Rice")
+  testthat::expect_equal(clean_dt$commodity[[1]], "Wheat clean")
+  testthat::expect_equal(clean_dt$commodity[[2]], "Rice")
   testthat::expect_equal(clean_dt$unit[[1]], "kilogram")
 })
 
@@ -280,10 +320,10 @@ testthat::test_that("when source and target columns are identical target rewrite
   dir.create(harmonize_dir, recursive = TRUE)
 
   clean_rules <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     value_source = "Wheat source",
-    column_target = "product",
+    column_target = "commodity",
     value_target_raw = "Wheat",
     value_target = "Wheat target",
     stringsAsFactors = FALSE
@@ -306,7 +346,7 @@ testthat::test_that("when source and target columns are identical target rewrite
   )
 
   input_dt <- data.frame(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     stringsAsFactors = FALSE
   )
 
@@ -316,8 +356,8 @@ testthat::test_that("when source and target columns are identical target rewrite
     dataset_name = "demo"
   )
 
-  testthat::expect_equal(clean_dt$product[[1]], "Wheat target")
-  testthat::expect_equal(clean_dt$product[[2]], "Rice")
+  testthat::expect_equal(clean_dt$commodity[[1]], "Wheat target")
+  testthat::expect_equal(clean_dt$commodity[[2]], "Rice")
 })
 
 
@@ -338,7 +378,7 @@ testthat::test_that("harmonize stage applies optional source rewrites", {
   harmonize_rules <- data.frame(
     column_source = "variable",
     value_source_raw = "Prod",
-    value_source = "Production",
+    value_source = "commodityion",
     column_target = "unit",
     value_target_raw = "kg",
     value_target = "kilogram",
@@ -373,7 +413,7 @@ testthat::test_that("harmonize stage applies optional source rewrites", {
     dataset_name = "demo"
   )
 
-  testthat::expect_equal(harmonize_dt$variable[[1]], "Production")
+  testthat::expect_equal(harmonize_dt$variable[[1]], "commodityion")
   testthat::expect_equal(harmonize_dt$variable[[2]], "Import")
   testthat::expect_equal(harmonize_dt$unit[[1]], "kilogram")
 })
@@ -397,7 +437,7 @@ testthat::test_that("clean stage blank source rewrite assigns NA on matched rows
     column_source = "continent",
     value_source_raw = "asia",
     value_source = "",
-    column_target = "product",
+    column_target = "commodity",
     value_target_raw = "wheat",
     value_target = "asia wheat",
     stringsAsFactors = FALSE
@@ -421,7 +461,7 @@ testthat::test_that("clean stage blank source rewrite assigns NA on matched rows
 
   input_dt <- data.frame(
     continent = c("asia", "europe"),
-    product = c("wheat", "wheat"),
+    commodity = c("wheat", "wheat"),
     stringsAsFactors = FALSE
   )
 
@@ -433,6 +473,6 @@ testthat::test_that("clean stage blank source rewrite assigns NA on matched rows
 
   testthat::expect_true(is.na(clean_dt$continent[[1]]))
   testthat::expect_equal(clean_dt$continent[[2]], "europe")
-  testthat::expect_equal(clean_dt$product[[1]], "asia wheat")
-  testthat::expect_equal(clean_dt$product[[2]], "wheat")
+  testthat::expect_equal(clean_dt$commodity[[1]], "asia wheat")
+  testthat::expect_equal(clean_dt$commodity[[2]], "wheat")
 })

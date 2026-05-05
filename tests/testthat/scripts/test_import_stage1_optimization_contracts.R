@@ -1,8 +1,19 @@
 source(here::here("tests", "test_helper.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "10-file_io.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "11-reading.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "12-transform.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "13-validate_log.R"), echo = FALSE)
+import_scripts <- c(
+  "10-file_io/10-metadata.R",
+  "10-file_io/10-discovery.R",
+  "11-reading/11-read-utils.R",
+  "11-reading/11-sheet-read.R",
+  "11-reading/11-batching.R",
+  "12-transform/12-transform-utils.R",
+  "12-transform/12-reshape.R",
+  "12-transform/12-processing.R",
+  "13-output/13-validate.R",
+  "13-output/13-output.R"
+)
+purrr::walk(import_scripts, \(script_name) {
+  source(here::here("r", "1-import_pipeline", script_name), echo = FALSE)
+})
 
 
 testthat::test_that("identify_year_columns detects single and range year columns", {
@@ -25,7 +36,7 @@ testthat::test_that("identify_year_columns detects single and range year columns
 
 testthat::test_that("normalize_key_fields normalizes expected text columns", {
   dt <- data.table::data.table(
-    variable = c("Production", "Trade"),
+    variable = c("commodityion", "Trade"),
     continent = c("Asía", "Europé"),
     country = c("Jápan", "Fránce"),
     footnotes = c("note 1/ Revised", "prel.; #2")
@@ -34,15 +45,15 @@ testthat::test_that("normalize_key_fields normalizes expected text columns", {
 
   out <- normalize_key_fields(dt, "Cérèals", cfg)
 
-  testthat::expect_true(all(out$product == "cereals"))
-  testthat::expect_identical(out$variable, c("production", "trade"))
+  testthat::expect_true(all(out$commodity == "cereals"))
+  testthat::expect_identical(out$variable, c("commodityion", "trade"))
   testthat::expect_identical(out$continent, c("asia", "europe"))
   testthat::expect_identical(out$country, c("japan", "france"))
   testthat::expect_true(all(!is.na(out$footnotes)))
 })
 
 
-testthat::test_that("extract_file_metadata parses yearbook and product deterministically", {
+testthat::test_that("extract_file_metadata parses yearbook and commodity deterministically", {
   file_paths <- c(
     "data/1-import/10-raw_import/whep_yb_2020_2021_a_b_wheat.xlsx",
     "data/1-import/10-raw_import/whep_yb_2019_2020_c_d_rice_grain.xlsx",
@@ -52,11 +63,11 @@ testthat::test_that("extract_file_metadata parses yearbook and product determini
   out <- extract_file_metadata(file_paths)
 
   testthat::expect_equal(out$yearbook[[1]], "yb_2020")
-  testthat::expect_equal(out$product[[1]], "wheat")
+  testthat::expect_equal(out$commodity[[1]], "wheat")
   testthat::expect_equal(out$yearbook[[2]], "yb_2019")
-  testthat::expect_equal(out$product[[2]], "rice_grain")
+  testthat::expect_equal(out$commodity[[2]], "rice_grain")
   testthat::expect_true(is.na(out$yearbook[[3]]))
-  testthat::expect_true(is.na(out$product[[3]]))
+  testthat::expect_true(is.na(out$commodity[[3]]))
 })
 
 
@@ -65,8 +76,8 @@ testthat::test_that("reshape_to_long preserves configured id columns", {
     hemisphere = c("north", "south"),
     continent = c("asia", "africa"),
     country = c("japan", "kenya"),
-    product = c("wheat", "rice"),
-    variable = c("production", "production"),
+    commodity = c("wheat", "rice"),
+    variable = c("commodityion", "commodityion"),
     unit = c("tonnes", "tonnes"),
     footnotes = c(NA_character_, NA_character_),
     `2020` = c("100", "200"),
@@ -88,8 +99,8 @@ testthat::test_that("reshape_to_long handles single-year inputs without changing
     hemisphere = c("north", "south"),
     continent = c("asia", "africa"),
     country = c("japan", "kenya"),
-    product = c("wheat", "rice"),
-    variable = c("production", "production"),
+    commodity = c("wheat", "rice"),
+    variable = c("commodityion", "commodityion"),
     unit = c("tonnes", "tonnes"),
     footnotes = c(NA_character_, NA_character_),
     `2020` = c("100", "200")
@@ -226,8 +237,8 @@ testthat::test_that("validate_mandatory_fields_dt uses centralized unknown docum
   dt <- data.table::data.table(
     continent = c("asia"),
     country = c(""),
-    product = c("wheat"),
-    variable = c("production")
+    commodity = c("wheat"),
+    variable = c("commodityion")
   )
   cfg <- build_test_config()
   constants <- get_pipeline_constants()

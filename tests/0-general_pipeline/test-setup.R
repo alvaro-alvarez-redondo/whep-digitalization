@@ -1,5 +1,5 @@
 # tests/0-general_pipeline/test-setup.R
-# unit tests for R/0-general_pipeline/01-setup.R
+# unit tests for R/0-general_pipeline/01-setup/ modules
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 
@@ -23,7 +23,7 @@ testthat::test_that("get_pipeline_constants returns a named list with required k
       "hemisphere",
       "continent",
       "country",
-      "product",
+      "commodity",
       "variable",
       "unit",
       "year",

@@ -2,10 +2,20 @@ options(
   whep.run_export_pipeline.auto = FALSE
 )
 
-source(
-  here::here("r", "0-general_pipeline", "02-helpers.R"),
-  echo = FALSE
-)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-assertions.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-time-formatting.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-string-normalization.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-numeric-coercion.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-token-extraction.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-data-table.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-export-validation.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-config-accessors.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-sorting.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-environment.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-checkpoints.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-data-cleaning.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "02-helpers", "02-io-cache.R"), echo = FALSE)
 source(
   here::here("r", "3-export_pipeline", "30-export_data.R"),
   echo = FALSE

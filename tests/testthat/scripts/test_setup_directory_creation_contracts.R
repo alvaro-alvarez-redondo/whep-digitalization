@@ -2,7 +2,9 @@ options(
   whep.run_general_pipeline.auto = FALSE
 )
 
-source(here::here("r", "0-general_pipeline", "01-setup.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "01-setup", "01-config.R"), echo = FALSE)
+source(here::here("r", "0-general_pipeline", "01-setup", "01-directories.R"), echo = FALSE)
 
 build_temp_test_paths <- function(root_name) {
   root_dir <- file.path(tempdir(), root_name)

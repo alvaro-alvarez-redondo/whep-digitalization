@@ -116,7 +116,7 @@ testthat::test_that("make_benchmark_config column_order includes full target sch
     "hemisphere",
     "continent",
     "country",
-    "product",
+    "commodity",
     "variable",
     "unit",
     "year",
@@ -167,7 +167,7 @@ testthat::test_that("make_wide_dt year column names are sequential years", {
 testthat::test_that("make_wide_dt contains required base columns", {
   dt <- make_wide_dt(20L)
   required <- c(
-    "product",
+    "commodity",
     "variable",
     "unit",
     "continent",
@@ -189,7 +189,7 @@ testthat::test_that("make_long_dt returns data.table with correct row count", {
 testthat::test_that("make_long_dt contains full long-format schema columns", {
   dt <- make_long_dt(10L)
   required <- c(
-    "product",
+    "commodity",
     "variable",
     "unit",
     "continent",

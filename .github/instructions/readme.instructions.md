@@ -1,6 +1,6 @@
 ---
 name: readme-generator
-description: 'Generate production-grade README.md reflecting post-refactor repository state.'
+description: 'Generate commodityion-grade README.md reflecting post-refactor repository state.'
 ---
 
 ## Mandatory Structure (fixed order)

@@ -4,11 +4,68 @@ options(
 )
 
 source(
-  here::here("r", "0-general_pipeline", "02-helpers.R"),
+  here::here("r", "0-general_pipeline", "02-helpers", "02-assertions.R"),
   echo = FALSE
 )
 source(
-  here::here("r", "2-postpro_pipeline", "24-standardize_units.R"),
+  here::here("r", "0-general_pipeline", "02-helpers", "02-time-formatting.R"),
+  echo = FALSE
+)
+source(
+  here::here(
+    "r",
+    "0-general_pipeline",
+    "02-helpers",
+    "02-string-normalization.R"
+  ),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-numeric-coercion.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-token-extraction.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-data-table.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-export-validation.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-config-accessors.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-sorting.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-environment.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-checkpoints.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-data-cleaning.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-io-cache.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 source(here::here("r", "run_pipeline.R"), echo = FALSE)
@@ -52,7 +109,7 @@ testthat::test_that("assign_environment_values errors on unnamed values", {
 
 testthat::test_that("validate_conversion_rules accepts normalize legacy schema", {
   legacy_rules <- data.table::data.table(
-    product = c("wheat", "rice"),
+    commodity = c("wheat", "rice"),
     from_unit = c("kg", "kg"),
     to_unit = c("g", "g"),
     factor = c("1000", "1000"),
@@ -64,12 +121,12 @@ testthat::test_that("validate_conversion_rules accepts normalize legacy schema",
   testthat::expect_invisible(validate_conversion_rules(normalize_rules))
 })
 
-testthat::test_that("validate_conversion_rules errors on duplicated product_key/unit_source", {
+testthat::test_that("validate_conversion_rules errors on duplicated commodity_key/unit_source", {
   duplicate_rules <- data.table::data.table(
-    product_key = c("wheat", "wheat"),
+    commodity_key = c("wheat", "wheat"),
     unit_source = c("kg", "kg"),
     unit_target = c("g", "mg"),
-    unit_multiplier = c(1000, 1000000),
+    unit_factor = c(1000, 1000000),
     unit_offset = c(0, 0)
   )
 
@@ -81,16 +138,16 @@ testthat::test_that("validate_conversion_rules errors on duplicated product_key/
 
 testthat::test_that("apply_standardize_rules converts values and stabilizes output contract", {
   mapped_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     value = c("2", "3")
   )
 
   prepared_rules_dt <- prepare_standardize_rules(data.table::data.table(
-    product_key = "wheat",
+    commodity_key = "wheat",
     unit_source = "kg",
     unit_target = "g",
-    unit_multiplier = 1000,
+    unit_factor = 1000,
     unit_offset = 0
   ))
 
@@ -99,7 +156,7 @@ testthat::test_that("apply_standardize_rules converts values and stabilizes outp
     prepared_rules_dt = prepared_rules_dt,
     unit_column = "unit",
     value_column = "value",
-    product_column = "product"
+    commodity_column = "commodity"
   )
 
   testthat::expect_named(result, c("data", "matched_count", "unmatched_count"))
@@ -113,7 +170,7 @@ testthat::test_that("apply_standardize_rules converts values and stabilizes outp
 
 testthat::test_that("apply_standardize_rules zero-rule path is deterministic", {
   mapped_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", ""),
     value = c("2", "")
   )
@@ -123,7 +180,7 @@ testthat::test_that("apply_standardize_rules zero-rule path is deterministic", {
     prepared_rules_dt = data.table::data.table(),
     unit_column = "unit",
     value_column = "value",
-    product_column = "product"
+    commodity_column = "commodity"
   )
 
   testthat::expect_identical(result$matched_count, 0L)
@@ -133,7 +190,7 @@ testthat::test_that("apply_standardize_rules zero-rule path is deterministic", {
 
 testthat::test_that("apply_standardize_rules errors for non-numeric value payload", {
   mapped_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     unit = "kg",
     value = "not_numeric"
   )
@@ -144,7 +201,7 @@ testthat::test_that("apply_standardize_rules errors for non-numeric value payloa
       prepared_rules_dt = data.table::data.table(),
       unit_column = "unit",
       value_column = "value",
-      product_column = "product"
+      commodity_column = "commodity"
     ),
     "non-numeric"
   )

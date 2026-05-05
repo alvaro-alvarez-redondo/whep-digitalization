@@ -3,27 +3,7 @@
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "21-postpro_utilities.R"
-  ),
-  echo = FALSE
-)
-source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "23-postpro_rule_engine.R"
-  ),
-  echo = FALSE
-)
-source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "25-postpro_diagnostics.R"
-  ),
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 
@@ -54,7 +34,7 @@ testthat::test_that("preflight flags invalid file naming patterns", {
 
   result <- collect_postpro_preflight(
     config = config,
-    dataset_columns = c("unit", "value", "product")
+    dataset_columns = c("unit", "value", "commodity")
   )
 
   testthat::expect_false(result$checks$cleaning_pattern_ok)
@@ -126,7 +106,7 @@ testthat::test_that("summarize_stage_rules aggregates audit records", {
     value_source_result = c("wheat_clean", "rice_clean"),
     value_target_raw = c("kg", "kg"),
     value_target_result = c("kilogram", "gram"),
-    column_source = c("product", "product"),
+    column_source = c("commodity", "commodity"),
     column_target = c("unit", "variable"),
     affected_rows = c(5L, 3L)
   )
@@ -159,7 +139,7 @@ testthat::test_that("build_postpro_diagnostics creates stage summaries", {
     value_source = "wheat_clean",
     value_target_raw = "kg",
     value_target = "kilogram",
-    column_source = "product",
+    column_source = "commodity",
     column_target = "unit",
     affected_rows = 5L
   )
@@ -178,10 +158,10 @@ testthat::test_that("build_postpro_diagnostics creates stage summaries", {
 
   standardize_audit_dt <- data.table::data.table(
     rule_file_identifier = "standardize_units_rules.xlsx",
-    product_key = "all products",
+    commodity_key = "all commodity",
     unit_source = "kg",
     unit_target = "t",
-    unit_multiplier = 0.001,
+    unit_factor = 0.001,
     unit_offset = 0,
     affected_rows = 3L
   )
@@ -198,32 +178,32 @@ testthat::test_that("build_postpro_diagnostics creates stage summaries", {
   testthat::expect_true("standardize_rule_summary" %in% names(result))
 })
 
-testthat::test_that("build_unmatched_standardize_rule_summary treats all-products as matched when rule key matched", {
+testthat::test_that("build_unmatched_standardize_rule_summary treats all-commodity as matched when rule key matched", {
   rule_catalog_dt <- data.table::data.table(
     rule_file_identifier = c(
       "standardize_units_rules.xlsx",
       "standardize_units_rules.xlsx"
     ),
-    product_key = c("all products", "wheat"),
+    commodity_key = c("all commodity", "wheat"),
     unit_source = c("kg", "tonne"),
     unit_target = c("g", "kg"),
-    unit_multiplier = c(1000, 1000),
+    unit_factor = c(1000, 1000),
     unit_offset = c(0, 0)
   )
 
   matched_rule_summary_dt <- data.table::data.table(
     affected_rows = 2L,
     rule_file_identifier = "standardize_units_rules.xlsx",
-    product_key = "corn",
+    commodity_key = "corn",
     unit_source = "kg",
     unit_target = "g",
-    unit_multiplier = 1000,
+    unit_factor = 1000,
     unit_offset = 0
   )
 
   matched_rule_counts_dt <- data.table::data.table(
-    rule_product_match_key = "all products",
-    applied_product_match_key = "corn",
+    rule_commodity_match_key = "all commodity",
+    applied_commodity_match_key = "corn",
     unit_source_key = "kg",
     affected_rows = 2L
   )
@@ -235,7 +215,7 @@ testthat::test_that("build_unmatched_standardize_rule_summary treats all-product
   )
 
   testthat::expect_equal(nrow(unmatched_dt), 1L)
-  testthat::expect_identical(unmatched_dt$product_key[[1]], "wheat")
+  testthat::expect_identical(unmatched_dt$commodity_key[[1]], "wheat")
   testthat::expect_identical(unmatched_dt$unit_source[[1]], "tonne")
   testthat::expect_identical(unmatched_dt$affected_rows[[1]], 0L)
 })
@@ -275,10 +255,10 @@ testthat::test_that("persist_postpro_audit writes overwrite subset diagnostics e
   )
   standardize_audit <- data.table::data.table(
     rule_file_identifier = "standardize_units_rules.xlsx",
-    product_key = "wheat",
+    commodity_key = "wheat",
     unit_source = "kg",
     unit_target = "t",
-    unit_multiplier = 0.001,
+    unit_factor = 0.001,
     unit_offset = 0,
     affected_rows = 2L
   )
@@ -307,7 +287,7 @@ testthat::test_that("persist_postpro_audit writes overwrite subset diagnostics e
     harmonize_audit_dt = harmonize_audit,
     standardize_audit_dt = standardize_audit,
     standardize_rules_dt = data.table::data.table(
-      product_key = "wheat",
+      commodity_key = "wheat",
       unit_source = "kg",
       unit_target = "t",
       source_rule_file = "standardize_units_rules.xlsx"
@@ -396,10 +376,10 @@ testthat::test_that("persist_postpro_audit writes overwrite subset diagnostics e
   ))
 
   standardize_required_columns <- c(
-    "product_key",
+    "commodity_key",
     "unit_source",
     "unit_target",
-    "unit_multiplier",
+    "unit_factor",
     "unit_offset"
   )
   testthat::expect_true(all(

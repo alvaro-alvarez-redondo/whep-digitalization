@@ -7,11 +7,11 @@ NULL
 
 # ── 2. synthetic data generators ────────────────────────────────────────────
 
-#' @title Synthetic product labels
-#' @description Internal pool of product labels used to generate synthetic rows.
+#' @title Synthetic commodity labels
+#' @description Internal pool of commodity labels used to generate synthetic rows.
 #' @keywords internal
 #' @noRd
-.ca_products <- c(
+.ca_commodity <- c(
   "cereals",
   "oilseeds",
   "pulses",
@@ -29,7 +29,7 @@ NULL
 #' @keywords internal
 #' @noRd
 .ca_variables <- c(
-  "production",
+  "commodityion",
   "yield",
   "area_harvested",
   "import_quantity",
@@ -66,7 +66,7 @@ NULL
 make_wide_dt <- function(n, n_years = 10L) {
   year_cols <- as.character(seq(2000L, 2000L + n_years - 1L))
   dt <- data.table::data.table(
-    product = sample(.ca_products, n, replace = TRUE),
+    commodity = sample(.ca_commodity, n, replace = TRUE),
     variable = sample(.ca_variables, n, replace = TRUE),
     unit = sample(.ca_units, n, replace = TRUE),
     continent = sample(.ca_continents, n, replace = TRUE),
@@ -106,7 +106,7 @@ make_long_dt <- function(n, na_fraction = 0.0, dup_fraction = 0.0) {
   n_orig <- n - n_dup
 
   dt <- data.table::data.table(
-    product = sample(.ca_products, n_orig, replace = TRUE),
+    commodity = sample(.ca_commodity, n_orig, replace = TRUE),
     variable = sample(.ca_variables, n_orig, replace = TRUE),
     unit = sample(.ca_units, n_orig, replace = TRUE),
     continent = sample(.ca_continents, n_orig, replace = TRUE),
@@ -167,7 +167,7 @@ make_benchmark_config <- function() {
     "hemisphere",
     "continent",
     "country",
-    "product",
+    "commodity",
     "variable",
     "unit",
     "year",
@@ -178,9 +178,15 @@ make_benchmark_config <- function() {
     "document"
   )
   list(
-    column_required = c("product", "variable", "unit", "continent", "country"),
+    column_required = c(
+      "commodity",
+      "variable",
+      "unit",
+      "continent",
+      "country"
+    ),
     column_id = c(
-      "product",
+      "commodity",
       "variable",
       "unit",
       "hemisphere",
@@ -191,10 +197,10 @@ make_benchmark_config <- function() {
     column_order = col_order,
     defaults = list(notes_value = NA_character_),
     columns = list(
-      mandatory = c("product", "variable", "unit", "value"),
+      mandatory = c("commodity", "variable", "unit", "value"),
       base = c("continent", "country", "unit", "footnotes"),
       id = c(
-        "product",
+        "commodity",
         "variable",
         "unit",
         "hemisphere",

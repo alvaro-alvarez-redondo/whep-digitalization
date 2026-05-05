@@ -83,8 +83,8 @@ NULL
   continents <- c("asia", "europe", "africa", "americas", "oceania")
 
   data.frame(
-    product = sprintf(
-      "product_%02d",
+    commodity = sprintf(
+      "commodity_%02d",
       ((row_id + workbook_id + sheet_id - 1L) %% 12L) + 1L
     ),
     variable = sprintf(
@@ -222,7 +222,7 @@ NULL
 
 #' @title Build read benchmark config
 #' @description Build a config object compatible with discover/read import
-#'   helpers while preserving production defaults when available.
+#'   helpers while preserving commodityion defaults when available.
 #' @param cfg A named list from get_analysis_config().
 #' @param import_folder Character scalar folder path.
 #' @return Named list config for import read helpers.
@@ -377,7 +377,7 @@ NULL
     list(
       name = "normalize_key_fields",
       stage = "1-import",
-      description = "normalize product/variable/continent/country in n-row wide table",
+      description = "normalize commodity/variable/continent/country in n-row wide table",
       fn_factory = function(n) {
         df <- make_wide_dt(n, n_years = n_yrs)
         function() {
@@ -625,13 +625,16 @@ NULL
   na_frac <- cfg$na_fraction
 
   conversion_rules_raw <- data.table::data.table(
-    product_key = rep(.ca_products, each = 3L),
-    unit_source = rep(c("tonnes", "kg_ha", "ha"), times = length(.ca_products)),
+    commodity_key = rep(.ca_commodity, each = 3L),
+    unit_source = rep(
+      c("tonnes", "kg_ha", "ha"),
+      times = length(.ca_commodity)
+    ),
     unit_target = rep(
       c("kg", "kg_per_ha_std", "ha_std"),
-      times = length(.ca_products)
+      times = length(.ca_commodity)
     ),
-    unit_multiplier = rep(c(1000, 1, 1), times = length(.ca_products)),
+    unit_factor = rep(c(1000, 1, 1), times = length(.ca_commodity)),
     unit_offset = 0
   )
 
@@ -659,7 +662,7 @@ NULL
             prepared_rules_dt = prepared_rules,
             unit_column = "unit",
             value_column = "value",
-            product_column = "product"
+            commodity_column = "commodity"
           )
         }
       }

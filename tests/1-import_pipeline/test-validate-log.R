@@ -2,10 +2,20 @@
 # unit tests for R/1-import_pipeline/13-validate_log.R
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "10-file_io.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "11-reading.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "12-transform.R"), echo = FALSE)
-source(here::here("r", "1-import_pipeline", "13-validate_log.R"), echo = FALSE)
+import_scripts <- c(
+  "10-file_io/10-metadata.R",
+  "10-file_io/10-discovery.R",
+  "11-reading/11-read-utils.R",
+  "11-reading/11-sheet-read.R",
+  "11-reading/11-batching.R",
+  "12-transform/12-transform-utils.R",
+  "12-transform/12-reshape.R",
+  "12-transform/12-processing.R",
+  "13-output/13-validate.R"
+)
+purrr::walk(import_scripts, \(script_name) {
+  source(here::here("r", "1-import_pipeline", script_name), echo = FALSE)
+})
 
 
 # --- validate_mandatory_fields_dt --------------------------------------------
@@ -24,8 +34,8 @@ testthat::test_that("validate_mandatory_fields_dt returns no errors for complete
 
 testthat::test_that("validate_mandatory_fields_dt creates missing columns", {
   dt <- data.table::data.table(
-    product = "wheat",
-    variable = "production",
+    commodity = "wheat",
+    variable = "commodityion",
     unit = "tonnes",
     year = "2020",
     value = "100",
@@ -45,8 +55,8 @@ testthat::test_that("validate_mandatory_fields_dt detects missing values with co
   dt <- data.table::data.table(
     continent = c("Asia", "", NA_character_),
     country = c("Japan", "France", ""),
-    product = c("wheat", "rice", "corn"),
-    variable = c("production", "trade", "yield"),
+    commodity = c("wheat", "rice", "corn"),
+    variable = c("commodityion", "trade", "yield"),
     document = c("doc.xlsx", "doc.xlsx", "doc.xlsx")
   )
   config <- build_test_config()
@@ -90,8 +100,8 @@ testthat::test_that("validate_mandatory_fields_dt does not add row_id to output"
 
 testthat::test_that("detect_duplicates_dt finds duplicate rows", {
   dt <- data.table::data.table(
-    product = c("wheat", "wheat"),
-    variable = c("production", "production"),
+    commodity = c("wheat", "wheat"),
+    variable = c("commodityion", "commodityion"),
     year = c("2020", "2020"),
     value = c("100", "100"),
     document = c("file1.xlsx", "file1.xlsx"),
@@ -249,7 +259,7 @@ testthat::test_that("validate_long_dt handles empty data.table", {
   dt <- data.table::data.table(
     continent = character(0),
     country = character(0),
-    product = character(0),
+    commodity = character(0),
     variable = character(0),
     unit = character(0),
     year = character(0),

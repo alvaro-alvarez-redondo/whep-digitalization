@@ -15,9 +15,79 @@ options(
   whep.checkpointing.enabled = FALSE
 )
 
-source(here::here("r", "0-general_pipeline", "01-setup.R"), echo = FALSE)
 source(
-  here::here("r", "0-general_pipeline", "02-helpers.R"),
+  here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "01-setup", "01-config.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "01-setup", "01-directories.R"),
+  echo = FALSE
+)
+
+# explicit helper modules
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-assertions.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-time-formatting.R"),
+  echo = FALSE
+)
+source(
+  here::here(
+    "r",
+    "0-general_pipeline",
+    "02-helpers",
+    "02-string-normalization.R"
+  ),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-numeric-coercion.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-token-extraction.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-data-table.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-export-validation.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-config-accessors.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-sorting.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-environment.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-checkpoints.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-data-cleaning.R"),
+  echo = FALSE
+)
+source(
+  here::here("r", "0-general_pipeline", "02-helpers", "02-io-cache.R"),
   echo = FALSE
 )
 
@@ -128,7 +198,7 @@ build_test_config <- function(root_dir = NULL) {
     column_required = c("continent", "country"),
     column_id = c(
       "hemisphere",
-      "product",
+      "commodity",
       "variable",
       "unit",
       "hemisphere",
@@ -140,7 +210,7 @@ build_test_config <- function(root_dir = NULL) {
       "hemisphere",
       "continent",
       "country",
-      "product",
+      "commodity",
       "variable",
       "unit",
       "year",
@@ -151,7 +221,7 @@ build_test_config <- function(root_dir = NULL) {
       "document"
     ),
     defaults = list(notes_value = NA_character_),
-    messages = list(show_missing_product_metadata_warning = FALSE),
+    messages = list(show_missing_commodity_metadata_warning = FALSE),
     export_config = list(
       data_suffix = ".xlsx",
       list_suffix = "_list.xlsx",
@@ -159,7 +229,7 @@ build_test_config <- function(root_dir = NULL) {
         "hemisphere",
         "continent",
         "country",
-        "product",
+        "commodity",
         "variable",
         "unit",
         "notes",
@@ -190,8 +260,8 @@ build_sample_long_dt <- function(n_rows = 4L) {
   data.table::data.table(
     continent = rep(c("Asia", "Europe"), length.out = n_rows),
     country = rep(c("Japan", "France"), length.out = n_rows),
-    product = rep("wheat", n_rows),
-    variable = rep("production", n_rows),
+    commodity = rep("wheat", n_rows),
+    variable = rep("commodityion", n_rows),
     unit = rep("tonnes", n_rows),
     year = as.character(2020L + seq_len(n_rows) - 1L),
     value = as.character(seq_len(n_rows) * 100L),

@@ -69,7 +69,7 @@ optimization_signal <- function(class_label, fn_name) {
     "O(n^3)" = sprintf(
       paste0(
         "%s is CUBIC — critical bottleneck. This function is unlikely to",
-        " scale to production data sizes. Redesign the algorithm immediately."
+        " scale to commodityion data sizes. Redesign the algorithm immediately."
       ),
       fn_name
     ),

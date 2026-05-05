@@ -3,19 +3,7 @@
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "21-postpro_utilities.R"
-  ),
-  echo = FALSE
-)
-source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "23-postpro_rule_engine.R"
-  ),
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 
@@ -24,7 +12,7 @@ source(
 
 testthat::test_that("coerce_rule_schema normalizes stage-prefixed columns", {
   raw_rule_dt <- data.frame(
-    clean_column_source = "product",
+    clean_column_source = "commodity",
     clean_value_source_raw = "Wheat",
     clean_column_target = "unit",
     clean_value_target_raw = "kg",
@@ -46,7 +34,7 @@ testthat::test_that("coerce_rule_schema normalizes stage-prefixed columns", {
 
 testthat::test_that("coerce_rule_schema errors on missing required columns", {
   raw_rule_dt <- data.frame(
-    column_source = "product",
+    column_source = "commodity",
     stringsAsFactors = FALSE
   )
 
@@ -78,8 +66,8 @@ testthat::test_that("coerce_rule_schema errors on missing required columns", {
 
 testthat::test_that("coerce_rule_schema errors on duplicate columns after normalization", {
   raw_rule_dt <- data.frame(
-    clean_column_source = "product",
-    column_source = "product",
+    clean_column_source = "commodity",
+    column_source = "commodity",
     clean_value_source_raw = "Wheat",
     clean_column_target = "unit",
     clean_value_target_raw = "kg",
@@ -102,12 +90,12 @@ testthat::test_that("coerce_rule_schema errors on duplicate columns after normal
 
 testthat::test_that("ensure_rule_referenced_columns adds missing columns to dataset", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg")
   )
 
   rules_dt <- data.table::data.table(
-    column_source = "product",
+    column_source = "commodity",
     column_target = "new_column"
   )
 
@@ -119,12 +107,12 @@ testthat::test_that("ensure_rule_referenced_columns adds missing columns to data
 
 testthat::test_that("ensure_rule_referenced_columns preserves existing columns", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg")
   )
 
   rules_dt <- data.table::data.table(
-    column_source = "product",
+    column_source = "commodity",
     column_target = "unit"
   )
 
@@ -138,12 +126,12 @@ testthat::test_that("ensure_rule_referenced_columns preserves existing columns",
 
 testthat::test_that("validate_canonical_rules allows NA in value columns for clean stage", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg")
   )
 
   rules_dt <- data.table::data.table(
-    column_source = c("product", "product"),
+    column_source = c("commodity", "commodity"),
     value_source_raw = c(NA_character_, "Rice"),
     value_source = c(NA_character_, NA_character_),
     column_target = c("unit", "unit"),
@@ -163,7 +151,7 @@ testthat::test_that("validate_canonical_rules allows NA in value columns for cle
 
 testthat::test_that("validate_canonical_rules fails for NA in structural columns", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat"),
+    commodity = c("Wheat"),
     unit = c("kg")
   )
 
@@ -212,7 +200,7 @@ testthat::test_that("validate_canonical_rules fails for NA in structural columns
 
 testthat::test_that("validate_canonical_rules reports missing dataset columns with row context", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat"),
+    commodity = c("Wheat"),
     unit = c("kg")
   )
 
@@ -330,12 +318,12 @@ testthat::test_that("validate_canonical_rules reports type-compatibility violati
 
 testthat::test_that("validate_canonical_rules detects duplicate rule keys", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     unit = "kg"
   )
 
   rules_dt <- data.table::data.table(
-    column_source = c("product", "product"),
+    column_source = c("commodity", "commodity"),
     value_source_raw = c("Wheat", "Wheat"),
     column_target = c("unit", "unit"),
     value_target_raw = c("kg", "kg"),
@@ -354,17 +342,17 @@ testthat::test_that("validate_canonical_rules detects duplicate rule keys", {
 
 testthat::test_that("validate_canonical_rules allows source rewrites that branch by value_target_raw", {
   dataset_dt <- data.table::data.table(
-    product = "wine",
+    commodity = "wine",
     variable = "area"
   )
 
   rules_dt <- data.table::data.table(
-    column_source = c("product", "product"),
+    column_source = c("commodity", "commodity"),
     value_source_raw = c("wine", "wine"),
     value_source = c("vineyards: wine", "wine"),
     column_target = c("variable", "variable"),
-    value_target_raw = c("area", "production"),
-    value_target = c("area", "production")
+    value_target_raw = c("area", "commodityion"),
+    value_target = c("area", "commodityion")
   )
 
   testthat::expect_invisible(
@@ -379,12 +367,12 @@ testthat::test_that("validate_canonical_rules allows source rewrites that branch
 
 testthat::test_that("validate_canonical_rules rejects duplicated conditional keys even if source rewrites differ", {
   dataset_dt <- data.table::data.table(
-    product = "wine",
+    commodity = "wine",
     variable = "area"
   )
 
   rules_dt <- data.table::data.table(
-    column_source = c("product", "product"),
+    column_source = c("commodity", "commodity"),
     value_source_raw = c("wine", "wine"),
     value_source = c("vineyards: wine", "wine"),
     column_target = c("variable", "variable"),
@@ -405,12 +393,12 @@ testthat::test_that("validate_canonical_rules rejects duplicated conditional key
 
 testthat::test_that("validate_canonical_rules reports duplicate key location and row previews", {
   dataset_dt <- data.table::data.table(
-    product = "wine",
+    commodity = "wine",
     variable = "area"
   )
 
   rules_dt <- data.table::data.table(
-    column_source = c("product", "product", "product"),
+    column_source = c("commodity", "commodity", "commodity"),
     value_source_raw = c("wine", "wine", "wine"),
     value_source = c("wine", "wine", "wine"),
     column_target = c("variable", "variable", "variable"),
@@ -517,12 +505,12 @@ testthat::test_that("match_rule_target_condition_values supports tokenized match
 
 testthat::test_that("apply_conditional_rule_group applies clean rules", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg")
   )
 
   group_rules <- data.table::data.table(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     value_source = NA_character_,
     column_target = "unit",
@@ -549,12 +537,12 @@ testthat::test_that("apply_conditional_rule_group applies clean rules", {
 
 testthat::test_that("apply_conditional_rule_group matches NA keys", {
   dataset_dt <- data.table::data.table(
-    product = c(NA_character_, "Wheat"),
+    commodity = c(NA_character_, "Wheat"),
     unit = c(NA_character_, "kg")
   )
 
   group_rules <- data.table::data.table(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = NA_character_,
     value_source = NA_character_,
     column_target = "unit",
@@ -578,12 +566,12 @@ testthat::test_that("apply_conditional_rule_group matches NA keys", {
 
 testthat::test_that("apply_conditional_rule_group applies empty target as NA", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg")
   )
 
   group_rules <- data.table::data.table(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     value_source = NA_character_,
     column_target = "unit",
@@ -663,13 +651,13 @@ testthat::test_that("apply_conditional_rule_group does not audit normalize-equiv
 
 testthat::test_that("apply_rule_payload applies multiple rule groups", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     variable = c("Prod", "Prod")
   )
 
   canonical_rules <- data.table::data.table(
-    column_source = c("product", "product"),
+    column_source = c("commodity", "commodity"),
     value_source_raw = c("Wheat", "Rice"),
     value_source = c(NA_character_, NA_character_),
     column_target = c("unit", "unit"),
@@ -693,7 +681,7 @@ testthat::test_that("apply_rule_payload applies multiple rule groups", {
 })
 
 testthat::test_that("apply_rule_payload returns empty audit for zero rules", {
-  dataset_dt <- data.table::data.table(product = "Wheat", unit = "kg")
+  dataset_dt <- data.table::data.table(commodity = "Wheat", unit = "kg")
 
   result <- apply_rule_payload(
     dataset_dt = dataset_dt,
@@ -710,13 +698,13 @@ testthat::test_that("apply_rule_payload returns empty audit for zero rules", {
 
 testthat::test_that("apply_rule_payload prepared execution plan matches direct execution", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     variable = c("Prod", "Prod")
   )
 
   canonical_rules <- data.table::data.table(
-    column_source = c("product", "product"),
+    column_source = c("commodity", "commodity"),
     value_source_raw = c("Wheat", "Rice"),
     value_source = c(NA_character_, NA_character_),
     column_target = c("unit", "unit"),
@@ -758,19 +746,19 @@ testthat::test_that("apply_rule_payload prepared execution plan matches direct e
 
 testthat::test_that("apply_rule_payload trigger_columns filters execution to dependent groups", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     variable = c("Prod", "Prod"),
     notes = c("old", "old")
   )
 
   canonical_rules <- data.table::data.table(
-    column_source = c("product", "variable"),
+    column_source = c("commodity", "variable"),
     value_source_raw = c("Wheat", "Prod"),
     value_source = c(NA_character_, NA_character_),
     column_target = c("unit", "notes"),
     value_target_raw = c("kg", "old"),
-    value_target = c("kilogram", "production-note")
+    value_target = c("kilogram", "commodityion-note")
   )
 
   prepared_payload <- prepare_rule_payload_execution_plan(
@@ -786,7 +774,7 @@ testthat::test_that("apply_rule_payload trigger_columns filters execution to dep
     rule_file_id = "test.xlsx",
     execution_timestamp_utc = "2026-01-01T00:00:00Z",
     prepared_payload = prepared_payload,
-    trigger_columns = c("product")
+    trigger_columns = c("commodity")
   )
 
   testthat::expect_equal(filtered_result$data$unit[[1]], "kilogram")
@@ -796,9 +784,9 @@ testthat::test_that("apply_rule_payload trigger_columns filters execution to dep
 })
 
 testthat::test_that("apply_conditional_rule_group enforces exactly one group payload input", {
-  dataset_dt <- data.table::data.table(product = "Wheat", unit = "kg")
+  dataset_dt <- data.table::data.table(commodity = "Wheat", unit = "kg")
   group_rules <- data.table::data.table(
-    column_source = "product",
+    column_source = "commodity",
     value_source_raw = "Wheat",
     value_source = NA_character_,
     column_target = "unit",
@@ -843,7 +831,7 @@ testthat::test_that("apply_conditional_rule_group enforces exactly one group pay
 
 testthat::test_that("apply_footnote_rules replaces a single footnote", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     footnotes = c("old note", "other note")
   )
 
@@ -873,7 +861,7 @@ testthat::test_that("apply_footnote_rules replaces a single footnote", {
 
 testthat::test_that("apply_footnote_rules removes a single footnote to NA", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat"),
+    commodity = c("Wheat"),
     footnotes = c("remove me")
   )
 
@@ -900,7 +888,7 @@ testthat::test_that("apply_footnote_rules removes a single footnote to NA", {
 
 testthat::test_that("apply_footnote_rules handles multi-footnote split and reconstruct", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat"),
+    commodity = c("Wheat"),
     footnotes = c("note A; note B; note C")
   )
 
@@ -930,7 +918,7 @@ testthat::test_that("apply_footnote_rules handles multi-footnote split and recon
 
 testthat::test_that("apply_footnote_rules preserves footnote order", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     footnotes = "first; second; third"
   )
 
@@ -957,7 +945,7 @@ testthat::test_that("apply_footnote_rules preserves footnote order", {
 
 testthat::test_that("apply_footnote_rules removes one footnote from multi-footnote cell", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     footnotes = "keep A; remove me; keep B"
   )
 
@@ -984,7 +972,7 @@ testthat::test_that("apply_footnote_rules removes one footnote from multi-footno
 
 testthat::test_that("apply_footnote_rules sets NA when all footnotes removed", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     footnotes = "del A; del B"
   )
 
@@ -1011,7 +999,7 @@ testthat::test_that("apply_footnote_rules sets NA when all footnotes removed", {
 
 testthat::test_that("apply_footnote_rules preserves unmatched footnotes", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     footnotes = "unmatched note; matched note"
   )
 
@@ -1038,7 +1026,7 @@ testthat::test_that("apply_footnote_rules preserves unmatched footnotes", {
 
 testthat::test_that("apply_footnote_rules handles comma-containing footnotes", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     footnotes = "note with, comma; simple note"
   )
 
@@ -1068,7 +1056,7 @@ testthat::test_that("apply_footnote_rules handles comma-containing footnotes", {
 
 testthat::test_that("apply_footnote_rules applies target column updates", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     unit = "kg",
     footnotes = "update unit"
   )
@@ -1096,7 +1084,7 @@ testthat::test_that("apply_footnote_rules applies target column updates", {
 
 testthat::test_that("apply_footnote_rules concatenates mapped notes values", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     notes = NA_character_,
     footnotes = "fn_country; fn_continent; fn_note_01; fn_note_02"
   )
@@ -1128,7 +1116,7 @@ testthat::test_that("apply_footnote_rules concatenates mapped notes values", {
 
 testthat::test_that("apply_footnote_rules appends concatenated notes to existing notes", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     notes = "existing note",
     footnotes = "fn_note_01; fn_note_02"
   )
@@ -1159,7 +1147,7 @@ testthat::test_that("apply_footnote_rules appends concatenated notes to existing
 
 testthat::test_that("apply_footnote_rules deduplicates concatenated notes values", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     notes = "composition: unspec",
     footnotes = "fn_note_dup"
   )
@@ -1187,7 +1175,7 @@ testthat::test_that("apply_footnote_rules deduplicates concatenated notes values
 
 testthat::test_that("apply_footnote_rules handles NA footnotes rows", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     footnotes = c(NA_character_, "some note")
   )
 
@@ -1215,7 +1203,7 @@ testthat::test_that("apply_footnote_rules handles NA footnotes rows", {
 
 testthat::test_that("apply_footnote_rules cleans temporary columns", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     footnotes = "note"
   )
 
@@ -1243,7 +1231,7 @@ testthat::test_that("apply_footnote_rules cleans temporary columns", {
 
 testthat::test_that("apply_footnote_rules generates compatible audit structure", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     footnotes = "test note"
   )
 
@@ -1287,7 +1275,7 @@ testthat::test_that("apply_footnote_rules generates compatible audit structure",
 
 testthat::test_that("apply_footnote_rules works with harmonize stage", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     footnotes = "harmonize me"
   )
 
@@ -1315,7 +1303,7 @@ testthat::test_that("apply_footnote_rules works with harmonize stage", {
 
 testthat::test_that("apply_footnote_rules does not audit normalize-equivalent no-op matches", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     footnotes = "__australian mandate__"
   )
 
@@ -1343,13 +1331,13 @@ testthat::test_that("apply_footnote_rules does not audit normalize-equivalent no
 
 testthat::test_that("apply_rule_payload routes footnote rules to apply_footnote_rules", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     unit = c("kg", "kg"),
     footnotes = c("fn A; fn B", "fn C")
   )
 
   canonical_rules <- data.table::data.table(
-    column_source = c("footnotes", "product"),
+    column_source = c("footnotes", "commodity"),
     value_source_raw = c("fn A", "Rice"),
     value_source = c("replaced A", NA_character_),
     column_target = c("footnotes", "unit"),
@@ -1373,7 +1361,7 @@ testthat::test_that("apply_rule_payload routes footnote rules to apply_footnote_
 
 testthat::test_that("apply_footnote_rules detects conflicting target updates", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     unit = "kg",
     footnotes = "fn1; fn2"
   )
@@ -1403,7 +1391,7 @@ testthat::test_that("apply_footnote_rules detects conflicting target updates", {
 
 testthat::test_that("apply_footnote_rules adds missing footnotes column", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     unit = "kg"
   )
 
@@ -1430,7 +1418,7 @@ testthat::test_that("apply_footnote_rules adds missing footnotes column", {
 
 testthat::test_that("apply_footnote_rules applies conditional target updates", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     unit = "kg",
     footnotes = "conditional fn"
   )
@@ -1459,7 +1447,7 @@ testthat::test_that("apply_footnote_rules applies conditional target updates", {
 
 testthat::test_that("apply_footnote_rules skips conditional update when condition not met", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     unit = "tonnes",
     footnotes = "conditional fn"
   )
@@ -1488,7 +1476,7 @@ testthat::test_that("apply_footnote_rules skips conditional update when conditio
 
 testthat::test_that("apply_footnote_rules skips source rewrite when target condition is not met", {
   dataset_dt <- data.table::data.table(
-    product = "bovine",
+    commodity = "bovine",
     footnotes = "large"
   )
 
@@ -1496,7 +1484,7 @@ testthat::test_that("apply_footnote_rules skips source rewrite when target condi
     column_source = "footnotes",
     value_source_raw = "large",
     value_source = "__VACAS_VIEJAS_TEST__",
-    column_target = "product",
+    column_target = "commodity",
     value_target_raw = "cattle",
     value_target = "cattle:__VACAS_VIEJAS_TEST__"
   )
@@ -1510,13 +1498,13 @@ testthat::test_that("apply_footnote_rules skips source rewrite when target condi
     execution_timestamp_utc = "2026-01-01T00:00:00Z"
   )
 
-  testthat::expect_equal(result$data$product[[1]], "bovine")
+  testthat::expect_equal(result$data$commodity[[1]], "bovine")
   testthat::expect_equal(result$data$footnotes[[1]], "large")
 })
 
 testthat::test_that("apply_footnote_rules matches concatenated notes target conditions", {
   dataset_dt <- data.table::data.table(
-    product = "Wheat",
+    commodity = "Wheat",
     notes = "borders: 1937; iia",
     footnotes = "conditional fn"
   )
@@ -1548,7 +1536,7 @@ testthat::test_that("apply_footnote_rules matches concatenated notes target cond
 
 testthat::test_that("__ANY__ target-condition skips append when note already exists", {
   dataset_dt <- data.table::data.table(
-    product = c("Wheat", "Rice"),
+    commodity = c("Wheat", "Rice"),
     notes = c("composition: unspec", "quality: high"),
     footnotes = c("conditional fn", "conditional fn")
   )

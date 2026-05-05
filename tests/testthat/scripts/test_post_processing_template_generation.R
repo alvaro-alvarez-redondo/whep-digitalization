@@ -4,14 +4,7 @@ options(
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 
-source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "21-postpro_utilities.R"
-  ),
-  echo = FALSE
-)
+source(here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"), echo = FALSE)
 
 testthat::test_that("generate_postpro_rule_templates writes clean and harmonize templates", {
   root_dir <- tempfile("whep-template-generation-")

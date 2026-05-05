@@ -1,5 +1,5 @@
 # tests/0-general_pipeline/test-helpers.R
-# unit tests for R/0-general_pipeline/02-helpers.R
+# unit tests for R/0-general_pipeline/02-helpers/ modules
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 
@@ -232,18 +232,18 @@ testthat::test_that("extract_yearbook uses first 4-digit token", {
 })
 
 
-# --- extract_product ---------------------------------------------------------
+# --- extract_commodity ---------------------------------------------------------
 
-testthat::test_that("extract_product extracts tokens from position 7 onward", {
+testthat::test_that("extract_commodity extracts tokens from position 7 onward", {
   parts <- c("a", "b", "c", "d", "e", "f", "rice", "grain.xlsx")
-  result <- extract_product(parts)
+  result <- extract_commodity(parts)
 
   testthat::expect_identical(result, "rice_grain")
 })
 
-testthat::test_that("extract_product returns NA for short input", {
+testthat::test_that("extract_commodity returns NA for short input", {
   parts <- c("a", "b", "c")
-  result <- extract_product(parts)
+  result <- extract_commodity(parts)
 
   testthat::expect_true(is.na(result))
 })
@@ -292,7 +292,7 @@ testthat::test_that("sort_pipeline_stage_dt sorts by canonical stage columns", {
     hemisphere = c("north", "north", "south"),
     continent = c("asia", "asia", "africa"),
     country = c("japan", "china", "kenya"),
-    product = c("rice", "rice", "tea"),
+    commodity = c("rice", "rice", "tea"),
     variable = c("yield", "yield", "yield"),
     unit = c("kg", "kg", "kg"),
     year = c("2021", "2020", "2022"),

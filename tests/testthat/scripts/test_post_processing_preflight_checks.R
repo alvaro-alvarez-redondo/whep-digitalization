@@ -5,19 +5,7 @@ options(
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
 source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "21-postpro_utilities.R"
-  ),
-  echo = FALSE
-)
-source(
-  here::here(
-    "r",
-    "2-postpro_pipeline",
-    "25-postpro_diagnostics.R"
-  ),
+  here::here("r", "2-postpro_pipeline", "run_postpro_pipeline.R"),
   echo = FALSE
 )
 
@@ -59,7 +47,7 @@ testthat::test_that("preflight flags invalid file naming patterns", {
 
   result <- collect_postpro_preflight(
     config = config,
-    dataset_columns = c("unit", "value", "product")
+    dataset_columns = c("unit", "value", "commodity")
   )
 
   testthat::expect_false(result$checks$cleaning_pattern_ok)
