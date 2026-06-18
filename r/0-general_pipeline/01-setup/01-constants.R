@@ -180,7 +180,7 @@ get_pipeline_constants <- function() {
         supported_diagnostics_verbosity = c("compact", "verbose")
       ),
       runtime_cache = list(
-        enabled = TRUE,
+        enabled = FALSE,
         cache_file_name = "stage_payload_bundle_cache.rds",
         max_entries = 128L
       ),
