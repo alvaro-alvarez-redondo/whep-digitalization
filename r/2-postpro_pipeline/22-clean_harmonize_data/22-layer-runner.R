@@ -75,7 +75,8 @@ run_rule_stage_layer_batch <- function(
           rules_dt = payload$canonical_rules,
           dataset_dt = working_data,
           rule_file_id = payload$rule_file_id,
-          stage_name = validated_stage_name
+          stage_name = validated_stage_name,
+          rule_file_path = payload$rule_file_path %||% payload$rule_file_id
         )
 
         memoize_schema_validation_signature(

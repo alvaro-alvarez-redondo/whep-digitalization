@@ -12,10 +12,16 @@
 #' @param rule_file_id Character scalar rule file identifier.
 #' @return Canonicalized `data.table` rule table.
 #' @importFrom checkmate assert_data_frame assert_string
-coerce_rule_schema <- function(rule_dt, stage_name, rule_file_id) {
+coerce_rule_schema <- function(
+  rule_dt,
+  stage_name,
+  rule_file_id,
+  rule_file_path = rule_file_id
+) {
   checkmate::assert_data_frame(rule_dt, min.rows = 0)
   validated_stage_name <- validate_postpro_stage_name(stage_name)
   checkmate::assert_string(rule_file_id, min.chars = 1)
+  checkmate::assert_string(rule_file_path, min.chars = 1)
 
   canonical_columns <- get_canonical_rule_columns()
   stage_prefix <- paste0("^", validated_stage_name, "_")
@@ -47,8 +53,10 @@ coerce_rule_schema <- function(rule_dt, stage_name, rule_file_id) {
 
   if (length(missing_required_columns) > 0L) {
     cli::cli_abort(c(
-      "Rule file {.file {rule_file_id}} is missing required columns.",
-      "x" = paste(missing_required_columns, collapse = ", ")
+      "Missing required columns in rule file.",
+      "x" = paste(missing_required_columns, collapse = ", "),
+      "i" = "Rule file location: {.path {rule_file_path}}",
+      "i" = "stage: {validated_stage_name}"
     ))
   }
 
@@ -190,7 +198,8 @@ check_type_compatibility <- function(
   rule_values,
   field_name,
   rule_file_id,
-  column_name = "unknown"
+  column_name = "unknown",
+  rule_file_path = rule_file_id
 ) {
   non_missing_values <- rule_values[!is.na(rule_values)]
 
@@ -198,45 +207,39 @@ check_type_compatibility <- function(
     non_missing_values <- as.character(non_missing_values)
   }
 
+  emit_type_error <- function(expected_type, parsed_values) {
+    invalid_indices <- which(is.na(parsed_values) & !is.na(non_missing_values))
+    invalid_preview <- utils::head(non_missing_values[invalid_indices], 5L)
+    invalid_row_indices <- which(
+      rule_values %in% non_missing_values[invalid_indices]
+    )
+    cli::cli_abort(c(
+      "Type compatibility validation failed for {.file {rule_file_id}}.",
+      "x" = "Expected type: {expected_type} for column {column_name}",
+      "x" = "Invalid rule values (preview): {paste(invalid_preview, collapse = ', ')}",
+      "i" = "Rule file location: {.path {rule_file_path}}",
+      "i" = "Rule rows with invalid values: [{paste(utils::head(invalid_row_indices, 10L), collapse = ', ')}]"
+    ))
+  }
+
   if (is.numeric(dataset_vector)) {
     suppressWarnings(parsed_values <- as.numeric(non_missing_values))
     if (anyNA(parsed_values) && length(non_missing_values) > 0) {
-      cli::cli_abort(c(
-        "Type compatibility validation failed for {.file {rule_file_id}}.",
-        "x" = paste0(
-          field_name,
-          " cannot be safely cast to numeric for column ",
-          column_name
-        )
-      ))
+      emit_type_error("numeric", parsed_values)
     }
   }
 
   if (is.integer(dataset_vector)) {
     suppressWarnings(parsed_values <- as.integer(non_missing_values))
     if (anyNA(parsed_values) && length(non_missing_values) > 0) {
-      cli::cli_abort(c(
-        "Type compatibility validation failed for {.file {rule_file_id}}.",
-        "x" = paste0(
-          field_name,
-          " cannot be safely cast to integer for column ",
-          column_name
-        )
-      ))
+      emit_type_error("integer", parsed_values)
     }
   }
 
   if (inherits(dataset_vector, "Date")) {
     suppressWarnings(parsed_values <- as.Date(non_missing_values))
     if (anyNA(parsed_values) && length(non_missing_values) > 0) {
-      cli::cli_abort(c(
-        "Type compatibility validation failed for {.file {rule_file_id}}.",
-        "x" = paste0(
-          field_name,
-          " cannot be safely cast to Date for column ",
-          column_name
-        )
-      ))
+      emit_type_error("Date", parsed_values)
     }
   }
 
@@ -256,11 +259,13 @@ validate_canonical_rules <- function(
   rules_dt,
   dataset_dt,
   rule_file_id,
-  stage_name
+  stage_name,
+  rule_file_path = rule_file_id
 ) {
   checkmate::assert_data_frame(rules_dt, min.rows = 0)
   checkmate::assert_data_frame(dataset_dt, min.rows = 0)
   checkmate::assert_string(rule_file_id, min.chars = 1)
+  checkmate::assert_string(rule_file_path, min.chars = 1)
   validated_stage_name <- validate_postpro_stage_name(stage_name)
 
   required_columns <- get_canonical_rule_columns()
@@ -293,9 +298,15 @@ validate_canonical_rules <- function(
   )]
 
   if (length(columns_with_na) > 0) {
+    na_row_indices <- which(rowSums(is.na(
+      as.data.frame(rules_dt)[, columns_with_na, drop = FALSE]
+    )) > 0L)
     cli::cli_abort(c(
-      "Rule file {.file {rule_file_id}} contains missing values in required columns.",
-      "x" = paste(columns_with_na, collapse = ", ")
+      "Missing values in required columns.",
+      "x" = paste(columns_with_na, collapse = ", "),
+      "i" = "Rule file location: {.path {rule_file_path}}",
+      "i" = "stage: {validated_stage_name}",
+      "i" = "Rule rows with missing required values: [{paste(na_row_indices, collapse = ', ')}]"
     ))
   }
 
@@ -313,26 +324,48 @@ validate_canonical_rules <- function(
   missing_target <- setdiff(target_columns, dataset_columns)
 
   if (length(missing_source) > 0 || length(missing_target) > 0) {
+    affected_rows <- which(
+      rules_dt$column_source %in% missing_source |
+        rules_dt$column_target %in% missing_target
+    )
     cli::cli_abort(c(
       "Rule columns are not present in dataset for {.file {rule_file_id}}.",
       if (length(missing_source) > 0) {
-        paste0("x source: ", paste(missing_source, collapse = ", "))
+        paste0("x Missing source columns in dataset: ", paste(missing_source, collapse = ", "))
       },
       if (length(missing_target) > 0) {
-        paste0("x target: ", paste(missing_target, collapse = ", "))
-      }
+        paste0("x Missing target columns in dataset: ", paste(missing_target, collapse = ", "))
+      },
+      "i" = "Rule file location: {.path {rule_file_path}}",
+      "i" = "Rule rows referencing missing dataset columns: [{paste(affected_rows, collapse = ', ')}]"
     ))
   }
 
   duplicate_key_dt <- rules_for_validation[,
-    .N,
+    .(
+      N = .N,
+      rows = list(.I)
+    ),
     by = .(column_source, value_source_raw, column_target, value_target_raw)
   ][N > 1L]
 
   if (nrow(duplicate_key_dt) > 0) {
+    dup_details <- vapply(seq_len(nrow(duplicate_key_dt)), function(i) {
+      row_indices <- duplicate_key_dt$rows[[i]]
+      paste0(
+        "Duplicate key #", i,
+        ": uniqueness key=(",
+        duplicate_key_dt$column_source[[i]], ", ",
+        duplicate_key_dt$value_source_raw[[i]], ", ",
+        duplicate_key_dt$column_target[[i]], ", ",
+        duplicate_key_dt$value_target_raw[[i]], ") ",
+        "rows=[", paste(row_indices, collapse = ", "), "]"
+      )
+    }, character(1))
     cli::cli_abort(c(
       "Rule uniqueness validation failed for {.file {rule_file_id}}.",
-      "x" = "Each (column_source, value_source_raw, column_target, value_target_raw) must be unique."
+      "i" = "Rule file location: {.path {rule_file_path}}",
+      stats::setNames(dup_details, rep("x", length(dup_details)))
     ))
   }
 
@@ -369,7 +402,8 @@ validate_canonical_rules <- function(
       value_source_raw,
       "value_source_raw",
       rule_file_id,
-      column_name = column_source[1]
+      column_name = column_source[1],
+      rule_file_path = rule_file_path
     ),
     by = column_source
   ]
@@ -379,7 +413,8 @@ validate_canonical_rules <- function(
       value_target_raw,
       "value_target_raw",
       rule_file_id,
-      column_name = column_target[1]
+      column_name = column_target[1],
+      rule_file_path = rule_file_path
     ),
     by = column_target
   ]
@@ -392,7 +427,8 @@ validate_canonical_rules <- function(
         get(source_value_column),
         source_value_column,
         rule_file_id,
-        column_name = column_source[1]
+        column_name = column_source[1],
+        rule_file_path = rule_file_path
       ),
       by = column_source
     ]
