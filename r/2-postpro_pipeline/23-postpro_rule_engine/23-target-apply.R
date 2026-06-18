@@ -488,8 +488,14 @@ apply_conditional_rule_group <- function(
     target_changed_value_count <- update_result$changed_value_count
   }
 
+  audit_mask <- if (source_changed_value_count + target_changed_value_count == 0L) {
+    rep(FALSE, length(matched_row_mask))
+  } else {
+    matched_row_mask
+  }
+
   matched_counts <- joined_dt[
-    matched_row_mask,
+    audit_mask,
     .(
       affected_rows = .N
     ),

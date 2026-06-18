@@ -302,7 +302,11 @@ apply_footnote_rules <- function(
   )
 
   # --- step 9: generate audit records ----------------------------------------
-  audit_source <- joined[matched_mask]
+  noop_mask <- matched_mask &
+    ((!is.na(joined$footnote) & !is.na(joined$footnote_final) &
+      joined$footnote == joined$footnote_final) |
+     (is.na(joined$footnote) & is.na(joined$footnote_final)))
+  audit_source <- joined[matched_mask & !noop_mask]
 
   if (nrow(audit_source) > 0L) {
     source_audit <- audit_source[,
