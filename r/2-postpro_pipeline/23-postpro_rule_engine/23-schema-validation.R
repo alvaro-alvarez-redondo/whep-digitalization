@@ -350,22 +350,34 @@ validate_canonical_rules <- function(
   ][N > 1L]
 
   if (nrow(duplicate_key_dt) > 0) {
-    dup_details <- vapply(seq_len(nrow(duplicate_key_dt)), function(i) {
-      row_indices <- duplicate_key_dt$rows[[i]]
-      paste0(
-        "Duplicate key #", i,
-        ": uniqueness key=(",
-        duplicate_key_dt$column_source[[i]], ", ",
-        duplicate_key_dt$value_source_raw[[i]], ", ",
-        duplicate_key_dt$column_target[[i]], ", ",
-        duplicate_key_dt$value_target_raw[[i]], ") ",
-        "rows=[", paste(row_indices, collapse = ", "), "]"
-      )
-    }, character(1))
+    dup_bullets <- unlist(lapply(
+      seq_len(nrow(duplicate_key_dt)),
+      function(i) {
+        row_indices <- duplicate_key_dt$rows[[i]]
+        rows_str <- paste(row_indices, collapse = ", ")
+        c(
+          stats::setNames(
+            paste0(
+              "Duplicate key #", i,
+              ": uniqueness key=(",
+              duplicate_key_dt$column_source[[i]], ", ",
+              duplicate_key_dt$value_source_raw[[i]], ", ",
+              duplicate_key_dt$column_target[[i]], ", ",
+              duplicate_key_dt$value_target_raw[[i]], ")"
+            ),
+            "x"
+          ),
+          stats::setNames(
+            paste0("rows=[", rows_str, "]"),
+            " "
+          )
+        )
+      }
+    ))
     cli::cli_abort(c(
       "Rule uniqueness validation failed for {.file {rule_file_id}}.",
       "i" = "Rule file location: {.path {rule_file_path}}",
-      stats::setNames(dup_details, rep("x", length(dup_details)))
+      dup_bullets
     ))
   }
 

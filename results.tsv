@@ -2,3 +2,5 @@ commit	composite	tests_passed	tests_failed	pass_rate	status	description
 a7e785d	92.5	506	41	92.5	baseline	initial state: 41 failures in post-processing and testthat/scripts (function-not-found errors)
 c7b3707	96.24	921	36	96.24	keep	exp-1: eager source_postpro_scripts at module load; 415 new passes
 adf5103	98.01	938	19	98.01	keep	exp-2: rule_file_path param + enriched error messages; 17 more passes
+0cc3369	0.0	0	0	0.0	keep	exp-3: lowercase error msg case fix (untested separately)
+cf98467	98.14	948	18	98.14	keep	exp-4: derive audit subdirs from audit_root_dir; +10 passes
