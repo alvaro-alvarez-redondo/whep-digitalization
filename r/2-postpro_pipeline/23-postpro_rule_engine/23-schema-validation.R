@@ -216,7 +216,7 @@ check_type_compatibility <- function(
     cli::cli_abort(c(
       "Type compatibility validation failed for {.file {rule_file_id}}.",
       "x" = "Expected type: {expected_type} for column {column_name}",
-      "x" = "Invalid rule values (preview): {paste(invalid_preview, collapse = ', ')}",
+      "x" = "invalid rule values (preview): {paste(invalid_preview, collapse = ', ')}",
       "i" = "Rule file location: {.path {rule_file_path}}",
       "i" = "Rule rows with invalid values: [{paste(utils::head(invalid_row_indices, 10L), collapse = ', ')}]"
     ))
