@@ -15,13 +15,18 @@ get_postpro_output_paths <- function(config) {
   )
 
   audit_root_dir <- config$paths$data$audit$audit_root_dir
+  constants <- get_pipeline_constants()
 
   return(list(
     audit_root_dir = audit_root_dir,
-    audit_dir = config$paths$data$audit$audit_dir,
-    diagnostics_dir = config$paths$data$audit$diagnostics_dir,
-    templates_dir = config$paths$data$audit$templates_dir,
-    runtime_cache_dir = config$paths$data$audit$runtime_cache_dir
+    audit_dir = config$paths$data$audit$audit_dir %||%
+      file.path(audit_root_dir, constants$postpro$audit_dir_name),
+    diagnostics_dir = config$paths$data$audit$diagnostics_dir %||%
+      file.path(audit_root_dir, constants$postpro$diagnostics_dir_name),
+    templates_dir = config$paths$data$audit$templates_dir %||%
+      file.path(audit_root_dir, constants$postpro$templates_dir_name),
+    runtime_cache_dir = config$paths$data$audit$runtime_cache_dir %||%
+      file.path(audit_root_dir, constants$postpro$runtime_cache_dir_name)
   ))
 }
 
