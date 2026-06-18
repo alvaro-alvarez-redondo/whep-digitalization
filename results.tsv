@@ -1,0 +1,2 @@
+commit	composite	tests_passed	tests_failed	pass_rate	status	description
+a7e785d	92.5	506	41	92.5	baseline	initial state: 41 failures in post-processing and testthat/scripts (function-not-found errors)

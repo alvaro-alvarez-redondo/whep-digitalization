@@ -17,7 +17,6 @@ if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
   )
 }
 
-
 #' @title Source one post-processing script
 #' @description Sources a single script with deterministic error handling.
 #' @param script_path Character scalar script path.
@@ -89,6 +88,8 @@ source_postpro_scripts <- function(
   return(invisible(TRUE))
 }
 
+source_postpro_scripts()
+
 #' @title Run units standardization stage
 #' @description Executes units standardization using the clean dataset and
 #' pipeline configuration.
@@ -145,8 +146,6 @@ run_postpro_pipeline_batch <- function(
   checkmate::assert_data_frame(raw_dt, min.rows = 0)
   checkmate::assert_list(config, min.len = 1)
   checkmate::assert_string(dataset_name, min.chars = 1)
-
-  source_postpro_scripts()
 
   total_steps <- 9
 
