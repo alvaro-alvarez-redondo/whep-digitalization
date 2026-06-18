@@ -1,15 +1,21 @@
 # tests/3-export_pipeline/test-export-lists.R
-# unit tests for R/3-export_pipeline/31-export_lists.R
+# unit tests for R/3-export_pipeline/31-lists/*.R
 
 source(here::here("tests", "test_helper.R"), echo = FALSE)
-source(
-  here::here("r", "3-export_pipeline", "30-export_data.R"),
-  echo = FALSE
+export_scripts <- c(
+  "30-processed_data/01-build-processed-export-path.R",
+  "30-processed_data/02-collect-layer-tables.R",
+  "30-processed_data/03-write-processed-table-fast.R",
+  "30-processed_data/04-export-processed-data.R",
+  "31-lists/01-sheet-order-and-infer.R",
+  "31-lists/02-build-path-and-unique-values.R",
+  "31-lists/03-resolve-and-compare.R",
+  "31-lists/04-cache-and-write.R"
 )
-source(
-  here::here("r", "3-export_pipeline", "31-export_lists.R"),
-  echo = FALSE
-)
+
+lapply(export_scripts, function(script_name) {
+  source(here::here("r", "3-export_pipeline", script_name), echo = FALSE)
+})
 
 
 # --- get_lists_sheet_order ---------------------------------------------------

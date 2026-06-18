@@ -3,6 +3,7 @@ import_scripts <- c(
   "10-file_io/10-metadata.R",
   "10-file_io/10-discovery.R",
   "11-reading/11-read-utils.R",
+  "11-reading/11-header-normalization.R",
   "11-reading/11-sheet-read.R",
   "11-reading/11-batching.R",
   "12-transform/12-transform-utils.R",
