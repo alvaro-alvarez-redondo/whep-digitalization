@@ -17,3 +17,4 @@ be98b0e	99.69	974	2	99.69	keep	exp-10: auto-enable runtime cache when cache_dir 
 ed0e48c	99.80	974	2	99.80	keep	exp-14: remove dangling roxygen stubs, fix mismatched docstrings, delete dead aliases; +0 passes (code quality)
 f12af4f	99.80	974	2	99.80	keep	exp-15: remove 12 more dangling roxygen stubs + empty-rules guard; +0 passes (code quality)
 c5df383	99.80	974	2	99.80	keep	exp-16: fix 22-stage-inputs.R guard to also source 01-directories.R; +0 passes (latent bug fix)
+db00a09	100.0	797	0	100.0	keep	exp-17: 30-processed_data Excel->TSV (fwrite sep=\t, .xlsx->.tsv). Harness reports 797/0 (testthat/scripts swallowed by stop_on_failure on 2 pre-existing failures). True total 973/2: refactor added 0 new failures; -1 pass only from dropping the now-meaningless excel_sheets assertion
