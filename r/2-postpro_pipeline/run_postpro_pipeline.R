@@ -2,7 +2,7 @@
 # description: source post-processing scripts and execute deterministic clean and
 # harmonize stages with structured audit persistence.
 
-if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
+if (!exists("ensure_directories_exist", mode = "function", inherits = TRUE)) {
   source(
     here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"),
     echo = FALSE
@@ -16,7 +16,6 @@ if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
     echo = FALSE
   )
 }
-
 
 #' @title Source one post-processing script
 #' @description Sources a single script with deterministic error handling.
@@ -89,6 +88,8 @@ source_postpro_scripts <- function(
   return(invisible(TRUE))
 }
 
+source_postpro_scripts()
+
 #' @title Run units standardization stage
 #' @description Executes units standardization using the clean dataset and
 #' pipeline configuration.
@@ -145,8 +146,6 @@ run_postpro_pipeline_batch <- function(
   checkmate::assert_data_frame(raw_dt, min.rows = 0)
   checkmate::assert_list(config, min.len = 1)
   checkmate::assert_string(dataset_name, min.chars = 1)
-
-  source_postpro_scripts()
 
   total_steps <- 9
 

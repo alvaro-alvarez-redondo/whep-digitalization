@@ -320,27 +320,41 @@ apply_target_updates_with_strategy <- function(
   )
 }
 
-#' @title Apply one conditional dictionary group
-#' @description Executes vectorized matching and mutation for one
-#' `(column_source, column_target)` group and captures structured audit records.
-#' @param dataset_dt Data table to mutate.
+#' @title Prepare one conditional rule group
+#' @description Coerces group rules to data.table and validates the stage name
+#' for later application by `apply_conditional_rule_group()`.
 #' @param group_rules Canonical rules for one source-target column pair.
 #' @param stage_name Character scalar stage label.
-#' @param dataset_name Character scalar dataset identifier.
-#' @param rule_file_id Character scalar rule file identifier.
-#' @param execution_timestamp_utc Character scalar execution timestamp.
-#' @return List with mutated `data` and `audit` table.
-#' @importFrom checkmate assert_data_table assert_data_frame assert_string
+#' @return Named list with `group_rules` and `stage_name`.
+#' @importFrom checkmate assert_data_frame
+prepare_conditional_rule_group <- function(group_rules, stage_name) {
+  checkmate::assert_data_frame(group_rules, min.rows = 1)
+  validated_stage_name <- validate_postpro_stage_name(stage_name)
+  list(
+    group_rules = data.table::as.data.table(group_rules),
+    stage_name = validated_stage_name
+  )
+}
+
 apply_conditional_rule_group <- function(
   dataset_dt,
-  group_rules,
+  group_rules = NULL,
   stage_name,
   dataset_name,
   rule_file_id,
   execution_timestamp_utc,
-  apply_match_normalization = TRUE
+  apply_match_normalization = TRUE,
+  prepared_group = NULL
 ) {
   checkmate::assert_data_table(dataset_dt)
+  has_rules <- !is.null(group_rules)
+  has_prepared <- !is.null(prepared_group)
+  if (has_rules == has_prepared) {
+    cli::cli_abort("exactly one of {.arg group_rules} or {.arg prepared_group} must be provided")
+  }
+  if (has_prepared) {
+    group_rules <- prepared_group$group_rules
+  }
   checkmate::assert_data_frame(group_rules, min.rows = 1)
   validated_stage_name <- validate_postpro_stage_name(stage_name)
   checkmate::assert_string(dataset_name, min.chars = 1)
@@ -488,8 +502,14 @@ apply_conditional_rule_group <- function(
     target_changed_value_count <- update_result$changed_value_count
   }
 
+  audit_mask <- if (source_changed_value_count + target_changed_value_count == 0L) {
+    rep(FALSE, length(matched_row_mask))
+  } else {
+    matched_row_mask
+  }
+
   matched_counts <- joined_dt[
-    matched_row_mask,
+    audit_mask,
     .(
       affected_rows = .N
     ),
@@ -534,19 +554,3 @@ apply_conditional_rule_group <- function(
     )
   ))
 }
-
-#' @title Apply footnote rules with multi-footnote split-join-reconstruct
-#' @description Vectorized footnotes processing that splits semicolon-delimited
-#' footnotes into long format, matches individual footnotes against rules,
-#' applies replacements and removals, updates target columns from matched
-#' footnotes, and reconstructs the footnotes column preserving original order.
-#' @param dataset_dt Data table to mutate.
-#' @param footnote_rules Canonical rules where `column_source == "footnotes"`.
-#' @param stage_name Character scalar stage label.
-#' @param dataset_name Character scalar dataset identifier.
-#' @param rule_file_id Character scalar rule file identifier.
-#' @param execution_timestamp_utc Character scalar execution timestamp.
-#' @return List with mutated `data` and `audit` table compatible with
-#' `apply_conditional_rule_group()` output schema.
-#' @importFrom checkmate assert_data_table assert_data_frame assert_string
-#' @importFrom data.table data.table as.data.table rbindlist setindex fcoalesce

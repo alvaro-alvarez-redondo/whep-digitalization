@@ -128,13 +128,3 @@ resolve_audit_output_paths <- function(
     audit_file_path = fs::path(audit_root_dir, audit_file_name)
   ))
 }
-
-#' @title audit non-empty character values
-#' @description validate that values are non-missing and non-empty.
-#' @param dataset_dt data frame.
-#' @param column_name character scalar.
-#' @return data.table of findings.
-#' @examples
-#' dataset_dt <- data.frame(document = c("ok.xlsx", ""), stringsAsFactors = FALSE)
-#' audit_character_non_empty(dataset_dt, "document")
-#' @export

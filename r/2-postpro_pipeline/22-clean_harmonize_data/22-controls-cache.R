@@ -413,15 +413,3 @@ find_repeated_stage_state_pass <- function(
 
   return(as.integer(state_pass_indexes[[matches[[1]]]]))
 }
-
-#' @title Run one rule-based post-processing stage
-#' @description Applies one stage of rule payloads (`clean` or `harmonize`) and
-#' returns transformed data with deterministic diagnostics and audit metadata.
-#' @param dataset_dt Input dataset as data.frame/data.table.
-#' @param config Named configuration list.
-#' @param stage_name Character scalar stage name (`clean` or `harmonize`).
-#' @param dataset_name Character scalar dataset identifier.
-#' @return `data.table` with attributes `layer_diagnostics` and `layer_audit`.
-#' @importFrom checkmate assert_data_frame assert_list assert_string
-#' @importFrom data.table as.data.table copy rbindlist
-#' @importFrom purrr reduce

@@ -1,0 +1,11 @@
+[project]
+language = "r"
+source_files = ["r/**/*.R"]
+read_only = ["tests/**/*.R"]
+
+[metrics]
+
+[metrics.tests]
+command = "Rscript -e \"source(here::here('tests','test_helper.R'),echo=FALSE); dirs<-c(here::here('tests','0-general_pipeline'),here::here('tests','1-import_pipeline'),here::here('tests','2-post_processing_pipeline'),here::here('tests','3-export_pipeline'),here::here('tests','testthat','scripts')); tp<-0L;tf<-0L;for(d in dirs){if(dir.exists(d)&&length(list.files(d,pattern='^test[-_]'))>0){r<-tryCatch(testthat::test_dir(d,reporter='silent'),error=function(e)NULL);if(!is.null(r)){df<-as.data.frame(r);tp<-tp+sum(df[['passed']]);tf<-tf+sum(df[['failed']])}}}; cat(tp,'passed',tf,'failed',round(tp/max(1,tp+tf)*100,2),'pct\\n')\""
+weight = 1.0
+direction = "up"

@@ -121,6 +121,27 @@ apply_standardize_rules <- function(
     }
   }
 
+  if (nrow(prepared_rules_dt) > 0L) {
+    prefix_applied_mask <- detected_prefixes != 1
+    if (any(prefix_applied_mask)) {
+      original_keys <- normalize_string(source_unit_raw_strings)
+      revert_mask <- prefix_applied_mask &
+        original_keys %in% prepared_rules_dt$unit_source_key
+      if (any(revert_mask)) {
+        revert_idx <- which(revert_mask)
+        unit_keys[revert_idx] <- original_keys[revert_idx]
+        numeric_values[revert_idx] <- coerce_numeric_safe(
+          normalize_dt[[value_column]]
+        )[revert_idx]
+        detected_prefixes[revert_idx] <- 1
+        data.table::set(
+          normalize_dt, i = revert_idx, j = unit_column,
+          value = raw_unit_strings[revert_idx]
+        )
+      }
+    }
+  }
+
   if (nrow(prepared_rules_dt) == 0L) {
     normalize_dt[, (value_column) := numeric_values]
 
@@ -553,13 +574,3 @@ attach_standardize_diagnostics <- function(
 
   return(standardized_dt)
 }
-
-#' @title Build standardize layer audit table
-#' @description Creates a deterministic audit table aligned with the
-#' standardization workbook rule schema.
-#' @param layer_rules_dt Prepared standardization rule table.
-#' @param matched_rule_counts_dt Rule-level matched row counts keyed by
-#' `rule_commodity_match_key`, `applied_commodity_match_key`, and `unit_source_key`.
-#' @param source_paths Character vector of source rule file paths.
-#' @return `data.table` with standardize audit columns.
-#' @importFrom checkmate assert_data_frame assert_character

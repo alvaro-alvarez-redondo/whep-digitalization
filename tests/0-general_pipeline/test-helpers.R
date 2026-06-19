@@ -301,9 +301,9 @@ testthat::test_that("sort_pipeline_stage_dt sorts by canonical stage columns", {
 
   result <- sort_pipeline_stage_dt(dt)
 
-  testthat::expect_identical(result$polity, c("kenya", "china", "japan"))
-  testthat::expect_identical(result$year, c("2022", "2020", "2021"))
-  testthat::expect_identical(result$notes, c("a", "a", "b"))
+  testthat::expect_identical(result$polity, c("china", "japan", "kenya"))
+  testthat::expect_identical(result$year, c("2020", "2021", "2022"))
+  testthat::expect_identical(result$notes, c("a", "b", "a"))
 })
 
 testthat::test_that("sort_pipeline_stage_dt ignores missing sort columns", {

@@ -39,8 +39,26 @@ get_pipeline_constants <- function() {
     patterns = list(
       normalize_non_alnum = "[^a-z0-9]+",
       normalize_already_clean = "^([a-z0-9]+( [a-z0-9]+)*)?$",
+      header_normalize_whitespace = "\\s+",
+      header_normalize_separator_spacing = "\\s*([/-])\\s*",
+      header_normalize_non_alnum = "[^a-z0-9\\-/]+",
+      header_normalize_multi_underscore = "_{2,}",
+      header_normalize_trim_underscore = "^_+|_+$",
+      header_normalize_fast_path = "^[a-z0-9](?:[a-z0-9/_-]*[a-z0-9])?$",
       year_column = "^\\d{4}(-\\d{4})?$",
       yearbook_token_4digit = "^\\d{4}$"
+    ),
+    transforms = list(
+      latin_ascii_lower = "Latin-ASCII; Lower"
+    ),
+    header_normalization = list(
+      whitespace_replacement = " ",
+      separator_replacement = "$1",
+      non_alnum_replacement = "_",
+      trim_underscore_replacement = "",
+      canonical_aliases = c(
+        country = "polity"
+      )
     ),
     performance = list(
       normalize_unique_min_n = 256L,

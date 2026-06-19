@@ -142,13 +142,3 @@ export_validation_audit_report <- function(
 
   return(output_path)
 }
-
-#' @title create audited data output
-#' @description run audit, export excel findings, and return numeric-parsed data.
-#' @param dataset_dt data frame.
-#' @param config audit configuration.
-#' @return data.table.
-#' @examples
-#' dataset_dt <- data.frame(document = "a.xlsx", value = "10", stringsAsFactors = FALSE)
-#' audit_data_output(dataset_dt, config)
-#' @export

@@ -1,11 +1,11 @@
 #' @title Build processed-data export path for an object
 #' @description Resolves the processed export directory from config and returns
-#' an object-name-based workbook path. Callers must ensure the directory exists
+#' an object-name-based TSV file path. Callers must ensure the directory exists
 #' before writing (see `export_processed_data`).
 #' @param config Named configuration list with
 #' `paths$data$export$processed`.
 #' @param object_name Character scalar object name.
-#' @return Character scalar path ending with `.xlsx`.
+#' @return Character scalar path ending with `.tsv`.
 #' @importFrom checkmate assert_list assert_string
 #' @importFrom fs path
 build_processed_export_path <- function(config, object_name) {
@@ -22,6 +22,6 @@ build_processed_export_path <- function(config, object_name) {
 
   return(fs::path(
     processed_dir,
-    paste0(normalize_filename(object_name), ".xlsx")
+    paste0(normalize_filename(object_name), ".tsv")
   ))
 }

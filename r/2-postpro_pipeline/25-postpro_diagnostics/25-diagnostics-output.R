@@ -258,7 +258,7 @@ persist_postpro_audit <- function(
     "affected_rows",
     "rule_file_identifier",
     "commodity_key",
-    "source_unit_raw",
+    "unit_source",
     "unit_target",
     "unit_factor",
     "unit_factor_effective",

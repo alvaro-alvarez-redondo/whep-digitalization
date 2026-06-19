@@ -76,14 +76,40 @@ read_excel_sheet <- function(file_path, sheet_name, config) {
 
   read_dt <- data.table::setDT(safe_read_result$result)
 
-  # Map legacy/alternate header names to the canonical pipeline names.
-  # If the input sheet has a "country" column (any case) but not a
-  # `polity` column, rename it to `polity` so downstream code finds it.
   read_names <- colnames(read_dt)
-  lower_names <- tolower(read_names)
-  if ("country" %in% lower_names && !("polity" %in% read_names)) {
-    country_idx <- which(lower_names == "country")[1]
-    data.table::setnames(read_dt, old = read_names[country_idx], new = "polity")
+  normalized_names <- normalize_header_names(read_names)
+
+  normalization_errors <- validate_header_normalization(
+    header_names = read_names,
+    normalized_header_names = normalized_names,
+    file_path = file_path,
+    sheet_name = sheet_name
+  )
+
+  if (length(normalization_errors) > 0) {
+    return(create_empty_read_result(normalization_errors))
+  }
+
+  canonical_names <- config$column_required
+  if (!is.null(config$column_id)) {
+    canonical_names <- unique(c(canonical_names, config$column_id))
+  }
+  canonical_names <- canonical_names[
+    !is.na(canonical_names) & nzchar(canonical_names)
+  ]
+
+  rename_pairs <- resolve_canonical_header_renames(
+    header_names = read_names,
+    normalized_header_names = normalized_names,
+    canonical_names = canonical_names
+  )
+
+  if (length(rename_pairs$old) > 0) {
+    data.table::setnames(
+      read_dt,
+      old = rename_pairs$old,
+      new = rename_pairs$new
+    )
     read_names <- colnames(read_dt)
   }
 

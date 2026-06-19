@@ -3,6 +3,10 @@ options(
 )
 
 source(
+  here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"),
+  echo = FALSE
+)
+source(
   here::here("r", "0-general_pipeline", "02-helpers", "02-assertions.R"),
   echo = FALSE
 )
@@ -63,14 +67,20 @@ source(
   here::here("r", "0-general_pipeline", "02-helpers", "02-io-cache.R"),
   echo = FALSE
 )
-source(
-  here::here("r", "3-export_pipeline", "30-export_data.R"),
-  echo = FALSE
+export_scripts <- c(
+  "30-processed_data/01-build-processed-export-path.R",
+  "30-processed_data/02-collect-layer-tables.R",
+  "30-processed_data/03-write-processed-table-fast.R",
+  "30-processed_data/04-export-processed-data.R",
+  "31-lists/01-sheet-order-and-infer.R",
+  "31-lists/02-build-path-and-unique-values.R",
+  "31-lists/03-resolve-and-compare.R",
+  "31-lists/04-cache-and-write.R"
 )
-source(
-  here::here("r", "3-export_pipeline", "31-export_lists.R"),
-  echo = FALSE
-)
+
+invisible(lapply(export_scripts, function(script_name) {
+  source(here::here("r", "3-export_pipeline", script_name), echo = FALSE)
+}))
 
 build_export_test_config <- function() {
   list(
@@ -109,11 +119,11 @@ testthat::test_that("build export paths follow required naming conventions", {
 
   testthat::expect_match(
     basename(processed_path),
-    "^dataset_harmonize\\.xlsx$"
+    "^dataset_harmonize\\.tsv$"
   )
   testthat::expect_match(
     basename(column_lists_path),
-    "^unique_polity_list\\.xlsx$"
+    "^unique_polity\\.xlsx$"
   )
 })
 
@@ -134,11 +144,9 @@ testthat::test_that("collect_layer_tables_for_export rejects legacy names and dr
 
   testthat::expect_setequal(
     names(layer_tables),
-    c("whep_data_raw", "whep_data_harmonize")
+    c("whep_data_clean", "whep_data_harmonize", "whep_data_raw")
   )
   testthat::expect_false("whep_data_post_processed" %in% names(layer_tables))
-  testthat::expect_false("whep_data_clean" %in% names(layer_tables))
-  testthat::expect_false("whep_data_harmonize" %in% names(layer_tables))
   testthat::expect_false("whep_data_standardize" %in% names(layer_tables))
 })
 
@@ -150,6 +158,10 @@ testthat::test_that("build_layer_tables_by_sheet enforces fixed sheet keys", {
 
   by_sheet <- build_layer_tables_by_sheet(layer_tables)
 
-  testthat::expect_identical(names(by_sheet), c("raw", "clean", "harmonize"))
+  testthat::expect_identical(
+    names(by_sheet),
+    c("raw", "clean", "normalize", "harmonize")
+  )
   testthat::expect_true(nrow(by_sheet$clean) == 0)
+  testthat::expect_true(nrow(by_sheet$normalize) == 0)
 })

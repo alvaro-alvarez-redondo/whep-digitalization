@@ -6,6 +6,7 @@ import_scripts <- c(
   "10-file_io/10-metadata.R",
   "10-file_io/10-discovery.R",
   "11-reading/11-read-utils.R",
+  "11-reading/11-header-normalization.R",
   "11-reading/11-sheet-read.R",
   "11-reading/11-batching.R"
 )
@@ -51,6 +52,91 @@ testthat::test_that("has_read_errors detects errors correctly", {
 })
 
 
+# --- normalize_header_names -------------------------------------------------
+
+testthat::test_that("normalize_header_names canonicalizes header keys", {
+  headers <- c("  Country Name  ", "Year / Period", "A-B (old)", "Value%")
+  result <- normalize_header_names(headers)
+
+  testthat::expect_identical(
+    result,
+    c("country_name", "year/period", "a-b_old", "value")
+  )
+})
+
+testthat::test_that("normalize_header_names keeps normalized headers unchanged", {
+  headers <- c("continent", "polity", "year/period", "a-b")
+  result <- normalize_header_names(headers)
+
+  testthat::expect_identical(result, headers)
+})
+
+testthat::test_that("normalize_header_names preserves NA entries", {
+  headers <- c(NA_character_, "  A   B  ")
+  result <- normalize_header_names(headers)
+
+  testthat::expect_true(is.na(result[[1]]))
+  testthat::expect_identical(result[[2]], "a_b")
+})
+
+
+# --- validate_header_normalization -----------------------------------------
+
+testthat::test_that("validate_header_normalization reports collisions", {
+  headers <- c("A_B", "A B")
+  normalized <- normalize_header_names(headers)
+
+  errors <- validate_header_normalization(
+    header_names = headers,
+    normalized_header_names = normalized,
+    file_path = "file.xlsx",
+    sheet_name = "Sheet1"
+  )
+
+  testthat::expect_equal(length(errors), 1L)
+  testthat::expect_true(grepl("collision", errors))
+})
+
+
+# --- resolve_canonical_header_renames --------------------------------------
+
+testthat::test_that("resolve_canonical_header_renames maps normalized headers", {
+  headers <- c(" Continent ", " PoLiTy ", "Year")
+  normalized <- normalize_header_names(headers)
+  canonical_names <- c("continent", "polity")
+
+  rename_pairs <- resolve_canonical_header_renames(
+    header_names = headers,
+    normalized_header_names = normalized,
+    canonical_names = canonical_names
+  )
+
+  testthat::expect_identical(
+    rename_pairs$old,
+    c(" Continent ", " PoLiTy ")
+  )
+  testthat::expect_identical(
+    rename_pairs$new,
+    c("continent", "polity")
+  )
+})
+
+testthat::test_that("resolve_canonical_header_renames maps canonical aliases", {
+  headers <- c("country", " Continent ")
+  normalized <- normalize_header_names(headers)
+  canonical_names <- c("continent", "polity")
+
+  rename_pairs <- resolve_canonical_header_renames(
+    header_names = headers,
+    normalized_header_names = normalized,
+    canonical_names = canonical_names
+  )
+
+  testthat::expect_true(all(c("country", " Continent ") %in% rename_pairs$old))
+  testthat::expect_true(all(c("polity", "continent") %in% rename_pairs$new))
+})
+
+
 # --- read_excel_sheet --------------------------------------------------------
 
 testthat::test_that("read_excel_sheet reads a valid xlsx file", {
@@ -80,6 +166,88 @@ testthat::test_that("read_excel_sheet reads a valid xlsx file", {
   testthat::expect_true("continent" %in% names(result$data))
   testthat::expect_true("polity" %in% names(result$data))
   testthat::expect_true(is.character(result$errors))
+})
+
+testthat::test_that("read_excel_sheet normalizes canonical header names", {
+  root_dir <- build_temp_dir("whep-read-sheet-normalize-")
+  file_path <- file.path(root_dir, "test_norm.xlsx")
+
+  test_data <- data.frame(
+    " Continent " = "Asia",
+    " PoLiTy " = "Japan",
+    value = "100",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  create_test_xlsx(test_data, file_path)
+
+  config <- build_test_config()
+
+  result <- read_excel_sheet(
+    file_path = file_path,
+    sheet_name = "Sheet1",
+    config = config
+  )
+
+  testthat::expect_true(all(c("continent", "polity") %in% names(result$data)))
+  testthat::expect_identical(result$data$continent[[1]], "Asia")
+  testthat::expect_identical(result$data$polity[[1]], "Japan")
+})
+
+testthat::test_that("read_excel_sheet rejects normalized header collisions", {
+  root_dir <- build_temp_dir("whep-read-dup-headers-")
+  file_path <- file.path(root_dir, "dup_headers.xlsx")
+
+  test_data <- data.frame(
+    "A_B" = "x",
+    "A B" = "y",
+    continent = "Asia",
+    polity = "Japan",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  create_test_xlsx(test_data, file_path)
+
+  config <- build_test_config()
+
+  result <- read_excel_sheet(
+    file_path = file_path,
+    sheet_name = "Sheet1",
+    config = config
+  )
+
+  testthat::expect_equal(nrow(result$data), 0L)
+  testthat::expect_true(length(result$errors) > 0L)
+  testthat::expect_true(any(grepl("collision", result$errors)))
+})
+
+testthat::test_that("read_excel_sheet aliases country to polity when missing", {
+  root_dir <- build_temp_dir("whep-read-country-")
+  file_path <- file.path(root_dir, "country_only.xlsx")
+
+  test_data <- data.frame(
+    country = "Japan",
+    continent = "Asia",
+    value = "100",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  create_test_xlsx(test_data, file_path)
+
+  config <- build_test_config()
+
+  result <- read_excel_sheet(
+    file_path = file_path,
+    sheet_name = "Sheet1",
+    config = config
+  )
+
+  testthat::expect_false("country" %in% names(result$data))
+  testthat::expect_true("polity" %in% names(result$data))
+  testthat::expect_identical(result$data$polity[[1]], "Japan")
 })
 
 testthat::test_that("read_excel_sheet handles file with missing required columns gracefully", {

@@ -302,7 +302,11 @@ apply_footnote_rules <- function(
   )
 
   # --- step 9: generate audit records ----------------------------------------
-  audit_source <- joined[matched_mask]
+  noop_mask <- matched_mask &
+    ((!is.na(joined$footnote) & !is.na(joined$footnote_final) &
+      joined$footnote == joined$footnote_final) |
+     (is.na(joined$footnote) & is.na(joined$footnote_final)))
+  audit_source <- joined[matched_mask & !noop_mask]
 
   if (nrow(audit_source) > 0L) {
     source_audit <- audit_source[,
@@ -355,18 +359,39 @@ apply_footnote_rules <- function(
   ))
 }
 
-#' @title Apply canonical rule file payload
-#' @description Executes matching and mutation in deterministic group order for a
-#' single file payload. Routes footnote-source rules through the specialized
-#' `apply_footnote_rules()` handler for multi-footnote split-join processing.
-#' @param dataset_dt Data table to mutate.
+#' @title Prepare rule payload execution plan
+#' @description Splits canonical rules into footnote and standard groups and
+#' builds a conditional rule dictionary for deterministic application order.
 #' @param canonical_rules Canonical rules table.
 #' @param stage_name Character scalar stage label.
-#' @param dataset_name Character scalar dataset identifier.
-#' @param rule_file_id Character scalar rule file identifier.
-#' @param execution_timestamp_utc Character scalar execution timestamp.
-#' @return List with mutated `data` and aggregated `audit` table.
-#' @importFrom checkmate assert_data_table assert_data_frame assert_string
+#' @return Named list with `footnote_rules`, `grouped_dictionary`,
+#'   `group_source_columns`, and `stage_name`.
+#' @importFrom checkmate assert_data_frame
+prepare_rule_payload_execution_plan <- function(canonical_rules, stage_name) {
+  checkmate::assert_data_frame(canonical_rules, min.rows = 0)
+  validated_stage_name <- validate_postpro_stage_name(stage_name)
+  rules_dt <- data.table::as.data.table(canonical_rules)
+  footnote_mask <- rules_dt$column_source == "footnotes"
+  footnote_rules <- rules_dt[footnote_mask]
+  standard_rules <- rules_dt[!footnote_mask]
+  grouped_dictionary <- if (nrow(standard_rules) > 0L) {
+    build_conditional_rule_dictionary(standard_rules, validated_stage_name)
+  } else {
+    list()
+  }
+  group_source_columns <- vapply(
+    grouped_dictionary,
+    function(g) g$column_source[[1]],
+    character(1)
+  )
+  list(
+    footnote_rules = footnote_rules,
+    grouped_dictionary = grouped_dictionary,
+    group_source_columns = group_source_columns,
+    stage_name = validated_stage_name
+  )
+}
+
 apply_rule_payload <- function(
   dataset_dt,
   canonical_rules,
@@ -374,7 +399,9 @@ apply_rule_payload <- function(
   dataset_name,
   rule_file_id,
   execution_timestamp_utc,
-  apply_match_normalization = TRUE
+  apply_match_normalization = TRUE,
+  prepared_payload = NULL,
+  trigger_columns = NULL
 ) {
   checkmate::assert_data_table(dataset_dt)
   checkmate::assert_data_frame(canonical_rules, min.rows = 0)
@@ -389,20 +416,37 @@ apply_rule_payload <- function(
       data = dataset_dt,
       audit = data.table::data.table(),
       overwrite_events = empty_last_rule_wins_overwrite_events_dt(),
-      changed_value_count = 0L
+      changed_value_count = 0L,
+      changed_columns = character(0)
     ))
   }
 
-  rules_dt <- data.table::as.data.table(canonical_rules)
+  if (!is.null(prepared_payload)) {
+    footnote_rules <- prepared_payload$footnote_rules
+    grouped_dictionary <- prepared_payload$grouped_dictionary
+    group_source_columns <- prepared_payload$group_source_columns
+  } else {
+    rules_dt <- data.table::as.data.table(canonical_rules)
+    footnote_mask <- rules_dt$column_source == "footnotes"
+    footnote_rules <- rules_dt[footnote_mask]
+    standard_rules <- rules_dt[!footnote_mask]
+    grouped_dictionary <- if (nrow(standard_rules) > 0L) {
+      build_conditional_rule_dictionary(standard_rules, validated_stage_name)
+    } else {
+      list()
+    }
+    group_source_columns <- vapply(
+      grouped_dictionary,
+      function(g) g$column_source[[1]],
+      character(1)
+    )
+  }
+
   audit_tables <- list()
   overwrite_tables <- list()
   changed_value_count <- 0L
+  changed_columns <- character(0)
   current_data <- dataset_dt
-
-  # --- route footnote-source rules through specialized handler ----------------
-  footnote_mask <- rules_dt$column_source == "footnotes"
-  footnote_rules <- rules_dt[footnote_mask]
-  standard_rules <- rules_dt[!footnote_mask]
 
   if (nrow(footnote_rules) > 0L) {
     fn_result <- apply_footnote_rules(
@@ -417,20 +461,22 @@ apply_rule_payload <- function(
     current_data <- fn_result$data
     audit_tables[[length(audit_tables) + 1L]] <- fn_result$audit
     changed_value_count <- changed_value_count + fn_result$changed_value_count
+    if (fn_result$changed_value_count > 0L) {
+      changed_columns <- union(changed_columns, "footnotes")
+    }
     if (nrow(fn_result$overwrite_events) > 0L) {
       overwrite_tables[[length(overwrite_tables) + 1L]] <-
         fn_result$overwrite_events
     }
   }
 
-  # --- apply remaining standard rules via grouped execution -------------------
-  grouped_dictionary <- build_conditional_rule_dictionary(
-    standard_rules,
-    validated_stage_name
-  )
-
   if (length(grouped_dictionary) > 0L) {
     for (group_index in seq_len(length(grouped_dictionary))) {
+      if (!is.null(trigger_columns) &&
+          !(group_source_columns[[group_index]] %in% trigger_columns)) {
+        next
+      }
+
       group_result <- apply_conditional_rule_group(
         dataset_dt = current_data,
         group_rules = grouped_dictionary[[group_index]],
@@ -445,6 +491,10 @@ apply_rule_payload <- function(
       audit_tables[[length(audit_tables) + 1L]] <- group_result$audit
       changed_value_count <-
         changed_value_count + group_result$changed_value_count
+      if (group_result$changed_value_count > 0L) {
+        target_col <- grouped_dictionary[[group_index]]$column_target[[1]]
+        changed_columns <- union(changed_columns, target_col)
+      }
       if (nrow(group_result$overwrite_events) > 0L) {
         overwrite_tables[[length(overwrite_tables) + 1L]] <-
           group_result$overwrite_events
@@ -468,6 +518,7 @@ apply_rule_payload <- function(
     data = current_data,
     audit = combined_audit,
     overwrite_events = combined_overwrite_events,
-    changed_value_count = as.integer(changed_value_count)
+    changed_value_count = as.integer(changed_value_count),
+    changed_columns = changed_columns
   ))
 }

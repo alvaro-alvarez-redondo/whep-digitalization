@@ -404,19 +404,3 @@ prepare_standardize_rules <- function(raw_rules_dt) {
 
   return(prepared_rules_dt)
 }
-
-#' @title Apply prepared standardization rules
-#' @description Applies prepared conversion rules to dataset values using keyed
-#' vectorized joins with fallback to "all commodity" rules. Conversion lookup
-#' occurs in two stages: (1) match on specific (commodity, unit_source), and (2)
-#' if no match found, attempt match on ("all commodity", unit_source). This
-#' allows general conversions to apply to all commodity unless overridden by
-#' commodity-specific rules.
-#' @param mapped_dt data.table/data.frame to standardize.
-#' @param prepared_rules_dt Prepared rule table from `prepare_standardize_rules()`.
-#' @param unit_column character scalar unit column name.
-#' @param value_column character scalar numeric value column name.
-#' @param commodity_column character scalar commodity column name.
-#' @return named list with `data`, `matched_count`, `unmatched_count`, and
-#' `matched_rule_counts`.
-#' @importFrom checkmate assert_data_frame assert_string

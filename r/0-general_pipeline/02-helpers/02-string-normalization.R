@@ -14,6 +14,7 @@ normalize_string_impl <- function(x) {
   constants <- get_pipeline_constants()
   non_alnum_pattern <- constants$patterns$normalize_non_alnum
   normalize_pattern <- constants$patterns$normalize_already_clean
+  transliterate_rule <- constants$transforms$latin_ascii_lower
 
   values_chr <- as.character(x)
   non_na_idx <- !is.na(values_chr)
@@ -46,7 +47,7 @@ normalize_string_impl <- function(x) {
 
     normalize_unique <- stringi::stri_trans_general(
       unique_values,
-      "Latin-ASCII; Lower"
+      transliterate_rule
     )
     normalize_unique <- stringi::stri_replace_all_regex(
       normalize_unique,
@@ -63,7 +64,7 @@ normalize_string_impl <- function(x) {
 
   normalize_values <- stringi::stri_trans_general(
     values_non_na,
-    "Latin-ASCII; Lower"
+    transliterate_rule
   )
   normalize_values <- stringi::stri_replace_all_regex(
     normalize_values,
@@ -106,8 +107,9 @@ normalize_string <- function(string) {
 clean_footnote_impl <- function(x) {
   constants <- get_pipeline_constants()
   footnote_pattern <- constants$patterns$footnote_non_alnum
+  transliterate_rule <- constants$transforms$latin_ascii_lower
 
-  out <- stringi::stri_trans_general(x, "Latin-ASCII; Lower")
+  out <- stringi::stri_trans_general(x, transliterate_rule)
   out <- stringi::stri_replace_all_regex(out, footnote_pattern, " ")
   stringi::stri_trim_both(out)
 }

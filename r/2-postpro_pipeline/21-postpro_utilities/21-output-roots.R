@@ -15,22 +15,19 @@ get_postpro_output_paths <- function(config) {
   )
 
   audit_root_dir <- config$paths$data$audit$audit_root_dir
+  constants <- get_pipeline_constants()
 
   return(list(
     audit_root_dir = audit_root_dir,
-    audit_dir = config$paths$data$audit$audit_dir,
-    diagnostics_dir = config$paths$data$audit$diagnostics_dir,
-    templates_dir = config$paths$data$audit$templates_dir,
-    runtime_cache_dir = config$paths$data$audit$runtime_cache_dir
+    audit_dir = config$paths$data$audit$audit_dir %||%
+      file.path(audit_root_dir, constants$postpro$audit_dir_name),
+    diagnostics_dir = config$paths$data$audit$diagnostics_dir %||%
+      file.path(audit_root_dir, constants$postpro$diagnostics_dir_name),
+    templates_dir = config$paths$data$audit$templates_dir %||%
+      file.path(audit_root_dir, constants$postpro$templates_dir_name),
+    runtime_cache_dir = config$paths$data$audit$runtime_cache_dir %||%
+      file.path(audit_root_dir, constants$postpro$runtime_cache_dir_name)
   ))
-}
-
-#' @title Get post-processing audit paths
-#' @description Legacy alias for `get_postpro_output_paths()`.
-#' @param config Named configuration list.
-#' @return Named list with post-processing output directories.
-get_postpro_audit_paths <- function(config) {
-  return(get_postpro_output_paths(config))
 }
 
 #' @title Initialize post-processing output directory tree
@@ -51,21 +48,3 @@ initialize_postpro_output_root <- function(config) {
 
   return(audit_paths)
 }
-
-#' @title Initialize post-processing audit directory tree
-#' @description Legacy alias for `initialize_postpro_output_root()`.
-#' @param config Named configuration list.
-#' @return Named list of post-processing output paths.
-initialize_postpro_audit_root <- function(config) {
-  return(initialize_postpro_output_root(config))
-}
-
-#' @title Generate unified rule template workbook
-#' @description Writes a deterministic template workbook with unified rule
-#' columns and guidance under the audit template directory. Both `clean` and
-#' `harmonize` stages share the same column schema.
-#' @param audit_paths Named list from `get_postpro_audit_paths()`.
-#' @param overwrite Logical scalar indicating whether existing template is replaced.
-#' @return Character scalar written template path.
-#' @importFrom checkmate assert_list assert_flag
-#' @importFrom writexl write_xlsx

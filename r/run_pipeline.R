@@ -251,7 +251,7 @@ run_pipeline_script <- function(pipeline_file) {
       cli::cli_abort(c(
         "pipeline script execution failed.",
         "x" = "script: {.path {pipeline_file}}",
-        "x" = "details: {error_condition$message}"
+        "x" = "cause: {error_condition$message}"
       ))
     }
   )

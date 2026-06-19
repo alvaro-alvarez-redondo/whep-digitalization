@@ -3,6 +3,10 @@ options(
 )
 
 source(
+  here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"),
+  echo = FALSE
+)
+source(
   here::here("r", "0-general_pipeline", "02-helpers", "02-assertions.R"),
   echo = FALSE
 )
@@ -63,14 +67,20 @@ source(
   here::here("r", "0-general_pipeline", "02-helpers", "02-io-cache.R"),
   echo = FALSE
 )
-source(
-  here::here("r", "3-export_pipeline", "30-export_data.R"),
-  echo = FALSE
+export_scripts <- c(
+  "30-processed_data/01-build-processed-export-path.R",
+  "30-processed_data/02-collect-layer-tables.R",
+  "30-processed_data/03-write-processed-table-fast.R",
+  "30-processed_data/04-export-processed-data.R",
+  "31-lists/01-sheet-order-and-infer.R",
+  "31-lists/02-build-path-and-unique-values.R",
+  "31-lists/03-resolve-and-compare.R",
+  "31-lists/04-cache-and-write.R"
 )
-source(
-  here::here("r", "3-export_pipeline", "31-export_lists.R"),
-  echo = FALSE
-)
+
+invisible(lapply(export_scripts, function(script_name) {
+  source(here::here("r", "3-export_pipeline", script_name), echo = FALSE)
+}))
 
 testthat::test_that("collect_union_columns returns deterministic union", {
   layer_by_sheet <- list(
@@ -108,6 +118,7 @@ testthat::test_that("build_column_unique_cache returns empty vectors for missing
 
 testthat::test_that("export_lists excludes normalize standalone sheet and value/year workbooks", {
   lists_dir <- tempfile("lists-export-")
+  dir.create(lists_dir, recursive = TRUE, showWarnings = FALSE)
 
   config <- list(
     paths = list(
@@ -162,6 +173,7 @@ testthat::test_that("export_lists excludes normalize standalone sheet and value/
 
 testthat::test_that("write_column_lists_workbook writes raw_clean_normalize_harmonize for all-equal tables", {
   lists_dir <- tempfile("lists-equal-")
+  dir.create(lists_dir, recursive = TRUE, showWarnings = FALSE)
 
   config <- list(
     paths = list(
@@ -199,6 +211,7 @@ testthat::test_that("write_column_lists_workbook writes raw_clean_normalize_harm
 
 testthat::test_that("write_column_lists_workbook writes raw + clean_normalize_harmonize when clean/normalize/harmonize equal", {
   lists_dir <- tempfile("lists-different-")
+  dir.create(lists_dir, recursive = TRUE, showWarnings = FALSE)
 
   config <- list(
     paths = list(
@@ -237,6 +250,7 @@ testthat::test_that("write_column_lists_workbook writes raw + clean_normalize_ha
 
 testthat::test_that("write_column_lists_workbook writes raw, clean, normalize, harmonize when all differ", {
   lists_dir <- tempfile("lists-all-different-")
+  dir.create(lists_dir, recursive = TRUE, showWarnings = FALSE)
 
   config <- list(
     paths = list(

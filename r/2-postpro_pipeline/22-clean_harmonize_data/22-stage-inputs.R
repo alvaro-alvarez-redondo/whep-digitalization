@@ -3,7 +3,7 @@
 # conditional transformations via a shared post-processing engine while
 # preserving independent stage entry points.
 
-if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
+if (!exists("ensure_directories_exist", mode = "function", inherits = TRUE)) {
   source(
     here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"),
     echo = FALSE
@@ -134,13 +134,3 @@ drop_empty_footnotes_column <- function(dataset_dt) {
 
   return(invisible(FALSE))
 }
-
-#' @title Resolve stage multi-pass controls
-#' @description Resolves and validates stage-specific multi-pass controls,
-#' applying configuration overrides over centralized defaults.
-#' @param config Named configuration list.
-#' @param stage_name Character scalar stage name.
-#' @return Named list with enabled flag, max passes, cycle policy, and
-#' diagnostics verbosity.
-#' @importFrom checkmate assert_list assert_string assert_logical assert_integer
-#'  assert_character

@@ -45,6 +45,8 @@ run_rule_stage_layer_batch <- function(
   }
 
   working_data <- data.table::copy(data.table::as.data.table(dataset_dt))
+  input_footnotes_were_all_na <- !("footnotes" %in% colnames(working_data)) ||
+    all(is.na(working_data[["footnotes"]]))
 
   schema_validation_cache_settings <- resolve_schema_validation_cache_settings(
     config = config
@@ -75,7 +77,8 @@ run_rule_stage_layer_batch <- function(
           rules_dt = payload$canonical_rules,
           dataset_dt = working_data,
           rule_file_id = payload$rule_file_id,
-          stage_name = validated_stage_name
+          stage_name = validated_stage_name,
+          rule_file_path = payload$rule_file_path %||% payload$rule_file_id
         )
 
         memoize_schema_validation_signature(
@@ -318,7 +321,9 @@ run_rule_stage_layer_batch <- function(
   }
 
   canonicalize_post_loop_annotation_columns(working_data)
-  drop_empty_footnotes_column(working_data)
+  if (input_footnotes_were_all_na) {
+    drop_empty_footnotes_column(working_data)
+  }
 
   stage_audit <- data.table::rbindlist(
     all_pass_audit_tables,

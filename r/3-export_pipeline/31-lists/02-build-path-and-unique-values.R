@@ -102,11 +102,13 @@ build_layer_tables_by_sheet <- function(layer_tables) {
   )
 
   layer_by_sheet <- lapply(layer_order, function(sheet_name) {
-    selected_object <- first_object_by_sheet[[sheet_name]]
+    selected_object <- first_object_by_sheet[sheet_name]
 
-    if (is.null(selected_object) || is.na(selected_object)) {
+    if (length(selected_object) == 0L || is.na(selected_object)) {
       return(data.table::data.table())
     }
+
+    selected_object <- unname(selected_object)
 
     return(data.table::as.data.table(layer_tables[[selected_object]]))
   })
