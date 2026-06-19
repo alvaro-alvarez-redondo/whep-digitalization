@@ -19,8 +19,20 @@ resolve_stage_runtime_cache_settings <- function(config) {
     configured_postpro <- config$postpro$runtime_cache
   }
 
+  has_explicit_enabled <- FALSE
   if (is.list(configured_postpro)) {
     configured_values <- utils::modifyList(defaults, configured_postpro)
+    has_explicit_enabled <- "enabled" %in% names(configured_postpro)
+  }
+
+  if (!has_explicit_enabled) {
+    cache_dir <- purrr::pluck(
+      config, "paths", "data", "audit", "runtime_cache_dir",
+      .default = NULL
+    )
+    if (is.character(cache_dir) && nchar(cache_dir) > 0L) {
+      configured_values$enabled <- TRUE
+    }
   }
 
   enabled <- isTRUE(configured_values$enabled)
@@ -216,7 +228,9 @@ build_stage_payload_cache_key <- function(config, stage_name) {
   return(paste0(
     validated_stage_name,
     "::",
-    paste(file_fingerprints, collapse = "||")
+    paste(file_fingerprints, collapse = "||"),
+    "@@",
+    import_dir
   ))
 }
 
