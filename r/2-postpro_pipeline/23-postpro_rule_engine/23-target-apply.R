@@ -331,16 +331,34 @@ apply_target_updates_with_strategy <- function(
 #' @param execution_timestamp_utc Character scalar execution timestamp.
 #' @return List with mutated `data` and `audit` table.
 #' @importFrom checkmate assert_data_table assert_data_frame assert_string
+prepare_conditional_rule_group <- function(group_rules, stage_name) {
+  checkmate::assert_data_frame(group_rules, min.rows = 1)
+  validated_stage_name <- validate_postpro_stage_name(stage_name)
+  list(
+    group_rules = data.table::as.data.table(group_rules),
+    stage_name = validated_stage_name
+  )
+}
+
 apply_conditional_rule_group <- function(
   dataset_dt,
-  group_rules,
+  group_rules = NULL,
   stage_name,
   dataset_name,
   rule_file_id,
   execution_timestamp_utc,
-  apply_match_normalization = TRUE
+  apply_match_normalization = TRUE,
+  prepared_group = NULL
 ) {
   checkmate::assert_data_table(dataset_dt)
+  has_rules <- !is.null(group_rules)
+  has_prepared <- !is.null(prepared_group)
+  if (has_rules == has_prepared) {
+    cli::cli_abort("exactly one of {.arg group_rules} or {.arg prepared_group} must be provided")
+  }
+  if (has_prepared) {
+    group_rules <- prepared_group$group_rules
+  }
   checkmate::assert_data_frame(group_rules, min.rows = 1)
   validated_stage_name <- validate_postpro_stage_name(stage_name)
   checkmate::assert_string(dataset_name, min.chars = 1)
