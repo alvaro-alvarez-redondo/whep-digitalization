@@ -77,15 +77,15 @@ testthat::test_that("build_processed_export_path generates correct naming", {
 
   path <- build_processed_export_path(config, "dataset_harmonize")
 
-  testthat::expect_match(basename(path), "^dataset_harmonize\\.xlsx$")
+  testthat::expect_match(basename(path), "^dataset_harmonize\\.tsv$")
 })
 
 
 # --- write_processed_table_fast ----------------------------------------------
 
-testthat::test_that("write_processed_table_fast writes valid xlsx with correct content", {
+testthat::test_that("write_processed_table_fast writes valid tsv with correct content", {
   root_dir <- build_temp_dir("whep-write-table-")
-  file_path <- file.path(root_dir, "output.xlsx")
+  file_path <- file.path(root_dir, "output.tsv")
 
   dt <- data.table::data.table(
     polity = c("Japan", "France"),
@@ -95,13 +95,9 @@ testthat::test_that("write_processed_table_fast writes valid xlsx with correct c
   write_processed_table_fast(dt, file_path)
 
   testthat::expect_true(file.exists(file_path))
-  testthat::expect_identical(
-    readxl::excel_sheets(file_path),
-    "processed_data"
-  )
 
-  # verify the file can be read back with correct content
-  read_back <- readxl::read_excel(file_path)
+  # verify the file can be read back with correct content as tab-delimited
+  read_back <- data.table::fread(file_path, sep = "\t", colClasses = "character")
   testthat::expect_equal(nrow(read_back), 2L)
   testthat::expect_equal(colnames(read_back), c("polity", "value"))
   testthat::expect_equal(read_back$polity, c("Japan", "France"))

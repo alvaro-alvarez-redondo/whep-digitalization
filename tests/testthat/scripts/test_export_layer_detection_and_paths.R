@@ -119,7 +119,7 @@ testthat::test_that("build export paths follow required naming conventions", {
 
   testthat::expect_match(
     basename(processed_path),
-    "^dataset_harmonize\\.xlsx$"
+    "^dataset_harmonize\\.tsv$"
   )
   testthat::expect_match(
     basename(column_lists_path),
