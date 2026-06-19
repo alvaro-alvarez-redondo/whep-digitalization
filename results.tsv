@@ -4,3 +4,13 @@ c7b3707	96.24	921	36	96.24	keep	exp-1: eager source_postpro_scripts at module lo
 adf5103	98.01	938	19	98.01	keep	exp-2: rule_file_path param + enriched error messages; 17 more passes
 0cc3369	0.0	0	0	0.0	keep	exp-3: lowercase error msg case fix (untested separately)
 cf98467	98.14	948	18	98.14	keep	exp-4: derive audit subdirs from audit_root_dir; +10 passes
+55aa1be	98.09	926	18	98.09	discard	exp-5: runtime_cache=TRUE broke constants test; reverted
+b9f418b	98.24	949	17	98.24	keep	exp-5b: dup-key rows fix + revert cache default; +1 pass
+00862f7	98.35	951	17	98.35	keep	exp-6: fix diagnostics excel_columns to use unit_source; +2 passes
+b0b03fa	98.87	963	11	98.87	keep	exp-7: prefer full unit key match over prefix extraction; +12 passes
+160bd0a	99.08	967	9	99.08	keep	exp-8: skip audit for no-op rule matches; +4 passes
+07a64ef	99.08	967	9	99.08	keep	exp-9: add prepare/trigger functions; +0 passes (tests already counted)
+be98b0e	99.69	974	2	99.69	keep	exp-10: auto-enable runtime cache when cache_dir configured; +6 passes
+111274e	99.80	974	2	99.80	keep	exp-11: preserve footnotes column when rules set to NA; +1 pass
+1a9cc7a	99.80	974	2	99.80	keep	exp-12: align cached payload structure with non-cached path; +0 passes (correctness fix)
+PENDING	99.80	974	2	99.80	keep	exp-13: fix setup guard to source 01-directories.R when only constants pre-loaded; +6 passes in testthat/scripts (previously hidden regression)

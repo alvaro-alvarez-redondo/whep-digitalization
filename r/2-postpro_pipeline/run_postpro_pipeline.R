@@ -2,7 +2,7 @@
 # description: source post-processing scripts and execute deterministic clean and
 # harmonize stages with structured audit persistence.
 
-if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
+if (!exists("ensure_directories_exist", mode = "function", inherits = TRUE)) {
   source(
     here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"),
     echo = FALSE
