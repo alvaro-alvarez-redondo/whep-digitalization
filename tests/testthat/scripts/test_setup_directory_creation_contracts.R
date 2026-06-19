@@ -56,7 +56,7 @@ testthat::test_that("create_required_directories handles generic path lists with
   )
 })
 
-testthat::test_that("create_required_directories excludes audit root tree when configured", {
+testthat::test_that("create_required_directories creates audit descendant tree when configured", {
   base_dir <- build_temp_test_paths("whep_directory_contracts_audit")
   paths <- list(
     data = list(
@@ -73,11 +73,8 @@ testthat::test_that("create_required_directories excludes audit root tree when c
   created_directories <- create_required_directories(paths)
 
   testthat::expect_true(dir.exists(file.path(base_dir, "import", "raw")))
-  testthat::expect_false(dir.exists(file.path(base_dir, "audit")))
-  testthat::expect_false(any(startsWith(
-    created_directories,
-    file.path(base_dir, "audit")
-  )))
+  testthat::expect_true(dir.exists(file.path(base_dir, "audit")))
+  testthat::expect_true(dir.exists(file.path(base_dir, "audit", "dataset")))
 })
 
 

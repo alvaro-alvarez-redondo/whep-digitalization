@@ -159,7 +159,10 @@ testthat::test_that("apply_standardize_rules converts values and stabilizes outp
     commodity_column = "commodity"
   )
 
-  testthat::expect_named(result, c("data", "matched_count", "unmatched_count"))
+  testthat::expect_named(
+    result,
+    c("data", "matched_count", "unmatched_count", "matched_rule_counts")
+  )
   testthat::expect_s3_class(result$data, "data.table")
   testthat::expect_identical(result$matched_count, 1L)
   testthat::expect_identical(result$unmatched_count, 1L)
