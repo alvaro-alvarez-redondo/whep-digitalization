@@ -15,3 +15,5 @@ be98b0e	99.69	974	2	99.69	keep	exp-10: auto-enable runtime cache when cache_dir 
 1a9cc7a	99.80	974	2	99.80	keep	exp-12: align cached payload structure with non-cached path; +0 passes (correctness fix)
 5960622	99.80	974	2	99.80	keep	exp-13: fix setup guard to source 01-directories.R when only constants pre-loaded; +6 passes in testthat/scripts (previously hidden regression)
 ed0e48c	99.80	974	2	99.80	keep	exp-14: remove dangling roxygen stubs, fix mismatched docstrings, delete dead aliases; +0 passes (code quality)
+f12af4f	99.80	974	2	99.80	keep	exp-15: remove 12 more dangling roxygen stubs + empty-rules guard; +0 passes (code quality)
+PENDING	99.80	974	2	99.80	keep	exp-16: fix 22-stage-inputs.R guard to also source 01-directories.R; +0 passes (latent bug fix)

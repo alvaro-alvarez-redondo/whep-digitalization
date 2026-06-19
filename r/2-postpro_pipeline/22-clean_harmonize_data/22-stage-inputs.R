@@ -3,7 +3,7 @@
 # conditional transformations via a shared post-processing engine while
 # preserving independent stage entry points.
 
-if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
+if (!exists("ensure_directories_exist", mode = "function", inherits = TRUE)) {
   source(
     here::here("r", "0-general_pipeline", "01-setup", "01-constants.R"),
     echo = FALSE
