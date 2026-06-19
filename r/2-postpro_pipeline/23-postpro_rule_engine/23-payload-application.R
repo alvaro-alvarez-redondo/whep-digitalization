@@ -359,18 +359,14 @@ apply_footnote_rules <- function(
   ))
 }
 
-#' @title Apply canonical rule file payload
-#' @description Executes matching and mutation in deterministic group order for a
-#' single file payload. Routes footnote-source rules through the specialized
-#' `apply_footnote_rules()` handler for multi-footnote split-join processing.
-#' @param dataset_dt Data table to mutate.
+#' @title Prepare rule payload execution plan
+#' @description Splits canonical rules into footnote and standard groups and
+#' builds a conditional rule dictionary for deterministic application order.
 #' @param canonical_rules Canonical rules table.
 #' @param stage_name Character scalar stage label.
-#' @param dataset_name Character scalar dataset identifier.
-#' @param rule_file_id Character scalar rule file identifier.
-#' @param execution_timestamp_utc Character scalar execution timestamp.
-#' @return List with mutated `data` and aggregated `audit` table.
-#' @importFrom checkmate assert_data_table assert_data_frame assert_string
+#' @return Named list with `footnote_rules`, `grouped_dictionary`,
+#'   `group_source_columns`, and `stage_name`.
+#' @importFrom checkmate assert_data_frame
 prepare_rule_payload_execution_plan <- function(canonical_rules, stage_name) {
   checkmate::assert_data_frame(canonical_rules, min.rows = 0)
   validated_stage_name <- validate_postpro_stage_name(stage_name)

@@ -216,10 +216,3 @@ load_stage_rule_payloads <- function(config, stage_name) {
 
   return(payloads)
 }
-
-#' @title Resolve stage runtime cache settings
-#' @description Resolves runtime cache settings from centralized defaults with
-#' optional configuration overrides.
-#' @param config Named configuration list.
-#' @return Named list with `enabled`, `cache_file_name`, and `max_entries`.
-#' @importFrom checkmate assert_list assert_flag assert_string assert_int

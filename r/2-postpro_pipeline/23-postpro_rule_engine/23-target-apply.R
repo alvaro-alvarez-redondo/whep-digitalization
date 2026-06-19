@@ -320,17 +320,13 @@ apply_target_updates_with_strategy <- function(
   )
 }
 
-#' @title Apply one conditional dictionary group
-#' @description Executes vectorized matching and mutation for one
-#' `(column_source, column_target)` group and captures structured audit records.
-#' @param dataset_dt Data table to mutate.
+#' @title Prepare one conditional rule group
+#' @description Coerces group rules to data.table and validates the stage name
+#' for later application by `apply_conditional_rule_group()`.
 #' @param group_rules Canonical rules for one source-target column pair.
 #' @param stage_name Character scalar stage label.
-#' @param dataset_name Character scalar dataset identifier.
-#' @param rule_file_id Character scalar rule file identifier.
-#' @param execution_timestamp_utc Character scalar execution timestamp.
-#' @return List with mutated `data` and `audit` table.
-#' @importFrom checkmate assert_data_table assert_data_frame assert_string
+#' @return Named list with `group_rules` and `stage_name`.
+#' @importFrom checkmate assert_data_frame
 prepare_conditional_rule_group <- function(group_rules, stage_name) {
   checkmate::assert_data_frame(group_rules, min.rows = 1)
   validated_stage_name <- validate_postpro_stage_name(stage_name)

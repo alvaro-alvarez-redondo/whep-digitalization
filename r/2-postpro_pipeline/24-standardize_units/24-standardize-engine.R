@@ -574,13 +574,3 @@ attach_standardize_diagnostics <- function(
 
   return(standardized_dt)
 }
-
-#' @title Build standardize layer audit table
-#' @description Creates a deterministic audit table aligned with the
-#' standardization workbook rule schema.
-#' @param layer_rules_dt Prepared standardization rule table.
-#' @param matched_rule_counts_dt Rule-level matched row counts keyed by
-#' `rule_commodity_match_key`, `applied_commodity_match_key`, and `unit_source_key`.
-#' @param source_paths Character vector of source rule file paths.
-#' @return `data.table` with standardize audit columns.
-#' @importFrom checkmate assert_data_frame assert_character
