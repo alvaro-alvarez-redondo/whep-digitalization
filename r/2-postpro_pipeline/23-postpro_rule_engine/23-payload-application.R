@@ -430,9 +430,11 @@ apply_rule_payload <- function(
     footnote_mask <- rules_dt$column_source == "footnotes"
     footnote_rules <- rules_dt[footnote_mask]
     standard_rules <- rules_dt[!footnote_mask]
-    grouped_dictionary <- build_conditional_rule_dictionary(
-      standard_rules, validated_stage_name
-    )
+    grouped_dictionary <- if (nrow(standard_rules) > 0L) {
+      build_conditional_rule_dictionary(standard_rules, validated_stage_name)
+    } else {
+      list()
+    }
     group_source_columns <- vapply(
       grouped_dictionary,
       function(g) g$column_source[[1]],

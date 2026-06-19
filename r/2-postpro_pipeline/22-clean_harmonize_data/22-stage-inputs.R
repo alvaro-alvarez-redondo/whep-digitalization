@@ -134,13 +134,3 @@ drop_empty_footnotes_column <- function(dataset_dt) {
 
   return(invisible(FALSE))
 }
-
-#' @title Resolve stage multi-pass controls
-#' @description Resolves and validates stage-specific multi-pass controls,
-#' applying configuration overrides over centralized defaults.
-#' @param config Named configuration list.
-#' @param stage_name Character scalar stage name.
-#' @return Named list with enabled flag, max passes, cycle policy, and
-#' diagnostics verbosity.
-#' @importFrom checkmate assert_list assert_string assert_logical assert_integer
-#'  assert_character

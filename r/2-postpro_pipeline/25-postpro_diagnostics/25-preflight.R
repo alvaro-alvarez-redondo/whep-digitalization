@@ -130,11 +130,3 @@ assert_postpro_preflight <- function(preflight_result) {
 
   return(invisible(TRUE))
 }
-
-#' @title Summarize clean/harmonize audit records
-#' @description Normalizes audit records into a row-level mirror of the clean or
-#' harmonize rule dictionary, preserving loop and affected-row detail.
-#' @param audit_dt Audit data.table from a post-processing stage.
-#' @param stage_name Character scalar stage label for the summary.
-#' @return `data.table` with one row per audit record.
-#' @importFrom data.table as.data.table data.table

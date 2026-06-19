@@ -485,11 +485,3 @@ build_conditional_rule_dictionary <- function(rules_dt, stage_name) {
 
   return(grouped_rules)
 }
-
-#' @title Encode target rule values with internal missing placeholder
-#' @description Converts empty strings and missing values in target rule values
-#' to an explicit internal placeholder for deterministic downstream handling.
-#' @param values Atomic vector values to encode.
-#' @param na_placeholder Character scalar internal missing token.
-#' @return Character vector with placeholder-encoded missing values.
-#' @importFrom checkmate assert_atomic assert_string

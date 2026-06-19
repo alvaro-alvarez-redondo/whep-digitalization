@@ -48,13 +48,3 @@ initialize_postpro_output_root <- function(config) {
 
   return(audit_paths)
 }
-
-#' @title Generate unified rule template workbook
-#' @description Writes a deterministic template workbook with unified rule
-#' columns and guidance under the audit template directory. Both `clean` and
-#' `harmonize` stages share the same column schema.
-#' @param audit_paths Named list from `get_postpro_output_paths()`.
-#' @param overwrite Logical scalar indicating whether existing template is replaced.
-#' @return Character scalar written template path.
-#' @importFrom checkmate assert_list assert_flag
-#' @importFrom writexl write_xlsx

@@ -554,19 +554,3 @@ apply_conditional_rule_group <- function(
     )
   ))
 }
-
-#' @title Apply footnote rules with multi-footnote split-join-reconstruct
-#' @description Vectorized footnotes processing that splits semicolon-delimited
-#' footnotes into long format, matches individual footnotes against rules,
-#' applies replacements and removals, updates target columns from matched
-#' footnotes, and reconstructs the footnotes column preserving original order.
-#' @param dataset_dt Data table to mutate.
-#' @param footnote_rules Canonical rules where `column_source == "footnotes"`.
-#' @param stage_name Character scalar stage label.
-#' @param dataset_name Character scalar dataset identifier.
-#' @param rule_file_id Character scalar rule file identifier.
-#' @param execution_timestamp_utc Character scalar execution timestamp.
-#' @return List with mutated `data` and `audit` table compatible with
-#' `apply_conditional_rule_group()` output schema.
-#' @importFrom checkmate assert_data_table assert_data_frame assert_string
-#' @importFrom data.table data.table as.data.table rbindlist setindex fcoalesce

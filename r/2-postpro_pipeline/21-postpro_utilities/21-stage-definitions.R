@@ -66,10 +66,3 @@ get_stage_source_value_column <- function(stage_name) {
 
   return("value_source")
 }
-
-#' @title Get post-processing output paths
-#' @description Resolves deterministic post-processing root and leaf directories.
-#' @param config Named configuration list.
-#' @return Named list with `audit_root_dir`, `audit_dir`, `diagnostics_dir`,
-#'   `templates_dir`, and `runtime_cache_dir`.
-#' @importFrom checkmate assert_list assert_string

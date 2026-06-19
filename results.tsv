@@ -13,4 +13,5 @@ b0b03fa	98.87	963	11	98.87	keep	exp-7: prefer full unit key match over prefix ex
 be98b0e	99.69	974	2	99.69	keep	exp-10: auto-enable runtime cache when cache_dir configured; +6 passes
 111274e	99.80	974	2	99.80	keep	exp-11: preserve footnotes column when rules set to NA; +1 pass
 1a9cc7a	99.80	974	2	99.80	keep	exp-12: align cached payload structure with non-cached path; +0 passes (correctness fix)
-PENDING	99.80	974	2	99.80	keep	exp-13: fix setup guard to source 01-directories.R when only constants pre-loaded; +6 passes in testthat/scripts (previously hidden regression)
+5960622	99.80	974	2	99.80	keep	exp-13: fix setup guard to source 01-directories.R when only constants pre-loaded; +6 passes in testthat/scripts (previously hidden regression)
+ed0e48c	99.80	974	2	99.80	keep	exp-14: remove dangling roxygen stubs, fix mismatched docstrings, delete dead aliases; +0 passes (code quality)

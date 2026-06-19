@@ -682,14 +682,3 @@ build_unmatched_rule_summary <- function(
     value_target_raw
   )][, ..ordered_columns])
 }
-
-#' @title Build post-processing rule summaries
-#' @description Creates stage-specific rule summaries for clean, harmonize,
-#' and standardize audit tables.
-#' @param clean_audit_dt Clean-stage audit table.
-#' @param harmonize_audit_dt Harmonize-stage audit table.
-#' @param standardize_audit_dt Standardize-stage audit table.
-#' @return Named list with `clean_rule_summary`, `harmonize_rule_summary`, and
-#' `standardize_rule_summary`
-#' data.tables.
-#' @importFrom checkmate assert_data_frame

@@ -499,17 +499,3 @@ count_elementwise_value_changes <- function(before_values, after_values) {
 
   return(as.integer(sum(value_changed)))
 }
-
-#' @title Apply target updates with strategy dispatch
-#' @description Applies conditional and unconditional target updates for one
-#' target column using a configured strategy (`last_rule_wins` or
-#' `concatenate`).
-#' @param dataset_dt Data table mutated by reference.
-#' @param target_updates Data frame/data.table containing row and value updates.
-#' @param target_column Character scalar target column to update.
-#' @param row_id_column Character scalar row-id column in `target_updates`.
-#' @param value_column Character scalar update value column in `target_updates`.
-#' @param condition_column Character scalar optional target condition column.
-#' @param order_columns Character vector columns used to deterministically order
-#' updates before strategy reduction.
-#' @return Invisible logical scalar indicating whether any update was applied.

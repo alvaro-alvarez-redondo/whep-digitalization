@@ -222,33 +222,3 @@ resolve_audit_columns_by_type <- function(config) {
 
   return(audit_columns_by_type)
 }
-
-#' @title export validation audit report
-#' @description write audit results to an excel workbook at output_path.
-#' Only creates folders and workbook if there is data to export.
-#' Output is sorted by document and written to sheet audit_report
-#' with specific cells highlighted based on config styles.
-#' @param audit_dt data frame or data table containing at least document.
-#' @param config named audit configuration list containing export styles.
-#' @param findings_dt data table with row_index and audit_column.
-#' @param output_path character scalar destination path for the excel file.
-#' @return character scalar with written output path (or NULL if nothing written).
-#' @examples
-#' \dontrun{
-#' audit_dt <- data.frame(document = "a.xlsx", stringsAsFactors = FALSE)
-#' config <- list(
-#'   column_order = c("document"),
-#'   audit_columns = c("document"),
-#'   paths = list(
-#'     data = list(
-#'       import = list(raw = tempdir()),
-#'       audit = list(
-#'         audit_file_path = fs::path(tempdir(), "audit.xlsx")
-#'       )
-#'     )
-#'   ),
-#'   export_config = list(styles = list(error_highlight = list(fgFill = "#FFC7CE")))
-#' )
-#' export_validation_audit_report(audit_dt, config)
-#' }
-#' @export
