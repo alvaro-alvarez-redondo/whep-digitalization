@@ -46,7 +46,7 @@ Per-stage test files source the stage they exercise (e.g. post-processing tests 
 *in addition to* — not instead of — the per-stage suites, and act as insurance against
 refactors silently changing a contract. Historically two of them contradicted the main
 suites; exp-18 aligned the stale ones to the authoritative behavior recorded in
-[architecture.md](architecture.md) and `progress.md`. Keep both in sync.
+[architecture.md](architecture.md) and [`progress.md`](../progress.md). Keep both in sync.
 
 ## Loading & source order
 
@@ -143,7 +143,7 @@ Keep them durable:
 
 - Reference **files and function names**, not line numbers (line numbers rot fastest).
 - When you change a contract, an entry point signature, a constant, or an option, update
-  the matching doc in the same change — and `progress.md` if it records a milestone.
+  the matching doc in the same change — and [`progress.md`](../progress.md) if it records a milestone.
 - The four `docs/` files have distinct jobs: mental model (architecture), where-things-live
   (codebase-map), config surface (constants-and-options), how-to + gotchas (conventions).
   Put new knowledge in the one that fits; don't duplicate across them.

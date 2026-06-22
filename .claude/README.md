@@ -29,8 +29,8 @@ Durable notes that let a session understand the repo by reading, not rescanning.
 ## Commands
 
 - [`commands/autocode.md`](commands/autocode.md) — `/autocode`: autonomous optimization
-  loop. Configured by `autocode.toml` (repo root); writes run state to `progress.md` and
-  `results.tsv`.
+  loop. Configured by `autocode.toml` (repo root); writes run state to
+  [`progress.md`](progress.md) and [`results.tsv`](results.tsv) (in this `.claude/` folder).
 
 ## Guidelines (task playbooks)
 

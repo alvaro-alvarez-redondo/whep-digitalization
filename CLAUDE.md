@@ -59,7 +59,8 @@ readme-generation). The full map of this layer is in [.claude/README.md](.claude
 ## Commands
 
 - `/autocode` — autonomous optimization loop (run tests → keep improvements → discard
-  regressions). Config in `autocode.toml`; run state in `progress.md` and `results.tsv`.
+  regressions). Config in `autocode.toml` (repo root); run state in
+  [.claude/progress.md](.claude/progress.md) and [.claude/results.tsv](.claude/results.tsv).
   See [.claude/commands/autocode.md](.claude/commands/autocode.md).
 
 ## Run & test (quick reference)

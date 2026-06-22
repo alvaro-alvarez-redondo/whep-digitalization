@@ -100,7 +100,7 @@ stage unless the option is disabled — tests disable all of them. See
 | Export layer detection | `test-export-data.R` | `collect_layer_tables_for_export()` detects `_raw/_clean/_normalize/_harmonize`, excludes `_wide_raw`/`_post_processed`; only the `harmonize` layer is exported by default |
 
 The two middle contracts were the source of long-standing contradictory test assertions;
-the authoritative behavior is the one stated here (see `progress.md`, exp-18).
+the authoritative behavior is the one stated here (see [`progress.md`](../progress.md), exp-18).
 
 ## Data layout (gitignored, under `data/`)
 
