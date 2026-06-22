@@ -45,8 +45,43 @@ Goal: highest-value, behavior-preserving speedups. Branch `autocode/jun22`.
 - Baseline: tests 975/0; **postpro_s = 27.89** (subset). Run-to-run noise ~8%.
 
 ### Experiments
-- exp-1: vectorize footnote long-format explosion (drop the per-row `by=row_id`
-  grouping + double strsplit). Byte-identical output verified across edge cases.
+- **exp-1 (keep):** vectorize footnote long-format explosion in
+  `apply_footnote_rules` — drop the per-row `by=row_id` grouping (357k groups)
+  and the double `strsplit`; build the long table with `strsplit`+`rep`+
+  `sequence`. Byte-identical output verified across edge cases.
+  postpro_s 27.89 → 21.45 on the 120k subset (**-23%**). Tests 975/0.
+- **exp-2 (keep):** cardinality-aware `canonicalize_semicolon_delimited_cells` —
+  canonicalize once per distinct cell value and map back (notes is 100% NA,
+  footnotes has only 796 distinct values among 360k rows). Byte-identical.
+  Subset wall-clock barely moved (small win obscured by ~8% noise), but a
+  re-profile confirms `canonicalize` dropped out of the hot list entirely
+  (it was ~15% on the full dataset). Tests 975/0.
+- **exp-3 (rejected, not committed):** restrict footnote explosion to non-NA
+  rows (76% of rows have NA footnotes). Investigated and **abandoned**:
+  `clean_footnotes.xlsx` has 537 footnote rules, **4 with NA/blank source** that
+  intentionally match NA footnotes (and footnote rules update other columns).
+  Skipping NA rows would change behavior — not safe. The remaining footnote cost
+  (explosion/join/reconstruction over all rows) is inherent to the rule
+  semantics; reducing it further would be a risky reconstruction rewrite.
+
+### Out of scope (flagged, not done)
+- **Import (84s, the largest single cost)** is bounded by `readxl` (unzip +
+  parse + name-repair, all C code). Safe levers don't exist without a dependency
+  swap (forbidden) or enabling a parallel `future::plan()` by default — which
+  introduces global state and isn't exercised by the (sequential) test suite, so
+  it can't be validated under this loop. Left for an explicit, separately-tested
+  decision.
+
+### jun22 result
+- **Post-processing stage ~30% faster** on the full real dataset (357,076 rows):
+  60.36s → 42.29s (min of 2 reps), from exp-1 + exp-2 combined.
+- Behavior preserved: full test suite 975/0 throughout; full-dataset postpro
+  output content-identical between baseline and optimized (harmonize 357,076x11;
+  `identical` + `all.equal` TRUE after normalizing equal-key row order / column
+  attributes — the values are unchanged). No dependency, contract, or
+  determinism changes.
+- Import (84s) intentionally untouched — bounded by `readxl`; the only real lever
+  is a parallel `future::plan()`, which is out of scope here (see above).
 
 ## Current state
 - 0 known failures across all 5 suites.
