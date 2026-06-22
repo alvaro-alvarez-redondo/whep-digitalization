@@ -35,6 +35,7 @@ category:
 ### Performance thresholds
 - `performance$normalize_unique_min_n` = `256L`, `normalize_unique_sample_n` = `2048L`, `normalize_unique_ratio_threshold` = `0.85` (cardinality-aware string normalization).
 - `performance$import_workbook_batch_size` = `32L`.
+- `performance$import_parallel_workers` = `1L` (opt-in import parallelism; `1L` = sequential. Overridable by `config$performance$import_parallel_workers` or option `whep.import.parallel_workers`. See [conventions.md](conventions.md#parallelism)).
 
 ### Paths (relative names; absolute paths are built into `config$paths`)
 - `paths$data_dir` = `"data"`; import: `import_dir`/`import_raw_dir`/`import_clean_dir`/`import_standardize_dir`/`import_harmonize_dir`; `postpro_dir` = `"2-postpro"`; export: `export_dir`/`export_lists_dir`/`export_processed_dir`; `checkpoints_dir` = `".checkpoints"`.
@@ -79,8 +80,10 @@ All read via `getOption("whep.<name>", <default>)`. Names come from `constants$a
 | `whep.drop_na_values` | `TRUE` | `drop_na_value_rows()` removes rows with `NA` value |
 | `whep.progress.enabled` | `TRUE` | `map_with_progress()` shows a `progressr` bar |
 | `whep.checkpointing.enabled` | `FALSE` | Enable RDS checkpoint save/load for crash recovery |
+| `whep.import.parallel_workers` | `1L` | Import worker count; `>1` runs import via `future::multisession` (`1` = sequential) |
 
 > Tests set every `whep.run_*_pipeline.auto` and `whep.checkpointing.enabled` to `FALSE`
 > (in `tests/test_helper.R`) so that sourcing pipeline files does not trigger a run.
-> Parallelism is **not** an option flag — it is driven by the active `future::plan()`
-> (see [conventions.md](conventions.md)).
+> Apart from the import opt-in flag above (`whep.import.parallel_workers`, which
+> `run_import_pipeline()` translates into a scoped `future::multisession` plan), parallelism
+> is driven by the active `future::plan()` (see [conventions.md](conventions.md#parallelism)).

@@ -91,16 +91,25 @@ suites; exp-18 aligned the stale ones to the authoritative behavior recorded in
 
 ## Parallelism
 
-Not a flag — it follows the active `future::plan()`. Three stages parallelize via
-`future.apply::future_lapply()` **only when** the plan is non-sequential *and* there is
-more than one work item:
+Three stages parallelize via `future.apply::future_lapply()` **only when** the active
+`future::plan()` is non-sequential *and* there is more than one work item:
 
 - Import read — `read_pipeline_files()` (batch size `performance$import_workbook_batch_size`, default 32).
 - Import transform — `process_files()` (per file).
 - List export — `export_lists()` (per column).
 
-Enable with `future::plan(future::multisession, workers = N)`; the default
-`future::sequential` keeps everything serial and deterministic.
+The default `future::sequential` keeps everything serial and deterministic. Output is
+**identical** under a parallel plan (`future.apply` preserves input order; results are not
+seed-dependent) — verified on the full dataset.
+
+**Import has an opt-in flag.** `run_import_pipeline()` resolves a worker count via
+`resolve_import_parallel_workers()` (option `whep.import.parallel_workers` ▸
+`config$performance$import_parallel_workers` ▸ constant default `1L`). When `> 1`, it sets
+`future::plan(future::multisession, workers = N)` **for that call only** and restores the
+caller's plan on exit — the global-state change stays scoped to the entry point. Default is
+`1L` (sequential). Import is I/O + serialization bound, so ~4 workers is the sweet spot
+(~2.3× on the full dataset); more workers can be *slower* (8 < 4 in benchmarks). To
+parallelize the other two stages, set a non-sequential plan yourself before calling them.
 
 ## Output formats (note the split)
 

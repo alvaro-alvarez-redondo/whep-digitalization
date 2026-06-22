@@ -64,7 +64,13 @@ get_pipeline_constants <- function() {
       normalize_unique_min_n = 256L,
       normalize_unique_sample_n = 2048L,
       normalize_unique_ratio_threshold = 0.85,
-      import_workbook_batch_size = 32L
+      import_workbook_batch_size = 32L,
+      # Import parallelism (opt-in). 1L = sequential (default; deterministic and
+      # the documented baseline). >1L runs the import read/transform via
+      # future::multisession with that many workers. Import is I/O + serialization
+      # bound, so returns diminish past ~4 workers (8 was slower than 4 in
+      # benchmarks); 4 is a good value when enabling on a multi-core machine.
+      import_parallel_workers = 1L
     ),
     defaults = list(
       unknown_document = "(unknown_document)",
@@ -196,7 +202,8 @@ get_pipeline_constants <- function() {
 
   constants$options <- list(
     progress_enabled = "whep.progress.enabled",
-    checkpointing_enabled = "whep.checkpointing.enabled"
+    checkpointing_enabled = "whep.checkpointing.enabled",
+    import_parallel_workers = "whep.import.parallel_workers"
   )
 
   constants$patterns$footnote_non_alnum <- "[^a-z0-9 ;/*().,#%:-]+"

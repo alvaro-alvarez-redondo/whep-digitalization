@@ -80,8 +80,25 @@ Goal: highest-value, behavior-preserving speedups. Branch `autocode/jun22`.
   `identical` + `all.equal` TRUE after normalizing equal-key row order / column
   attributes — the values are unchanged). No dependency, contract, or
   determinism changes.
-- Import (84s) intentionally untouched — bounded by `readxl`; the only real lever
-  is a parallel `future::plan()`, which is out of scope here (see above).
+- Import (84s) is bounded by `readxl`; the one real lever is parallelism — see
+  the opt-in flag below.
+
+### Import parallelism (opt-in flag; follow-up to the postpro loop)
+- New switch `whep.import.parallel_workers` (option) ▸
+  `config$performance$import_parallel_workers` ▸ constant default `1L`. When `>1`,
+  `run_import_pipeline()` sets `future::plan(multisession, workers = N)` for that
+  call only and restores the caller's plan on `on.exit` (global-state change
+  scoped to the entry point). Default `1L` = sequential, so existing behavior is
+  unchanged. Resolved by `resolve_import_parallel_workers()` (in `11-batching.R`).
+- The read/transform stages already dispatched through `future.apply`; this just
+  flips the plan. Verified output is **content-identical** to sequential on the
+  full dataset (both at 4 and 8 workers).
+- Speedup (full import, 16-core machine): **87.5s → 37.2s at 4 workers (~2.35x)**.
+  I/O + serialization bound, so it does NOT scale with cores — 8 workers was
+  *slower* (45.4s); ~4 is the sweet spot.
+- Tests: full suite **983/0** (added `tests/1-import_pipeline/test-parallel-import.R`:
+  flag-resolution unit tests + a parallel-vs-sequential output-parity test that
+  skips only if the environment cannot start multisession workers).
 
 ## Current state
 - 0 known failures across all 5 suites.
