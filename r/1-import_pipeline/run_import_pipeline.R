@@ -71,6 +71,21 @@ run_import_pipeline <- function(config) {
     source(here::here("r", "1-import_pipeline", script_name), echo = FALSE)
   }
 
+  # Opt-in import parallelism (default sequential). When more than one worker is
+  # requested, set a multisession plan for this call only and restore the
+  # caller's plan on exit, so the global future::plan() change stays scoped to
+  # this orchestration entry point. The read/transform stages dispatch through
+  # future.apply automatically under a non-sequential plan; output is identical
+  # to sequential (future.apply preserves order; results are not seed-dependent).
+  import_parallel_workers <- resolve_import_parallel_workers(config)
+  if (import_parallel_workers > 1L) {
+    previous_future_plan <- future::plan(
+      future::multisession,
+      workers = import_parallel_workers
+    )
+    on.exit(future::plan(previous_future_plan), add = TRUE)
+  }
+
   file_list_dt <- discover_files(config$paths$data$import$raw)
 
   if (nrow(file_list_dt) == 0) {

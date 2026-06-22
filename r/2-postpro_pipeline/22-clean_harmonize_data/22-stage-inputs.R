@@ -64,8 +64,15 @@ canonicalize_semicolon_delimited_cells <- function(
     return(values_chr)
   }
 
-  values_chr[non_missing_idx] <- vapply(
-    values_chr[non_missing_idx],
+  # Canonicalization is a deterministic function of each cell string, and these
+  # annotation columns are low-cardinality (the same note/footnote repeats across
+  # many rows). Compute the canonical form once per distinct value and map back,
+  # instead of running the per-cell split/dedup/sort on every row.
+  non_missing_values <- values_chr[non_missing_idx]
+  unique_values <- unique(non_missing_values)
+
+  canonicalized_unique <- vapply(
+    unique_values,
     FUN.VALUE = character(1),
     FUN = function(single_value) {
       split_tokens <- strsplit(single_value, ";", fixed = TRUE)[[1]]
@@ -81,6 +88,10 @@ canonicalize_semicolon_delimited_cells <- function(
       paste(sorted_tokens, collapse = delimiter)
     }
   )
+
+  values_chr[non_missing_idx] <- canonicalized_unique[
+    match(non_missing_values, unique_values)
+  ]
 
   return(values_chr)
 }

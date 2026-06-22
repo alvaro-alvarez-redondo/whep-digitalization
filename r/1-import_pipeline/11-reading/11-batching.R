@@ -53,6 +53,50 @@ resolve_import_workbook_batch_size <- function(config) {
   return(resolved_batch_size)
 }
 
+#' Resolve import parallel worker count
+#' Reads the worker count for parallel import in priority order: the
+#' `whep.import.parallel_workers` option, then
+#' `config$performance$import_parallel_workers`, then the pipeline constant
+#' default. A value of 1 (or anything missing/invalid) means sequential
+#' execution. This is the single opt-in switch for import parallelism; the
+#' read/transform stages then dispatch through `future.apply` automatically.
+#' @param config Named configuration list.
+#' @return Positive integer scalar worker count (>= 1).
+#' @examples
+#' \dontrun{
+#' resolve_import_parallel_workers(config)
+#' }
+resolve_import_parallel_workers <- function(config) {
+  assert_or_abort(checkmate::check_list(config, any.missing = FALSE))
+
+  constants <- get_pipeline_constants()
+  resolved_workers <- constants$performance$import_parallel_workers
+
+  if (
+    is.list(config$performance) &&
+      !is.null(config$performance$import_parallel_workers)
+  ) {
+    resolved_workers <- config$performance$import_parallel_workers
+  }
+
+  resolved_workers <- getOption(
+    constants$options$import_parallel_workers,
+    resolved_workers
+  )
+
+  suppressWarnings(resolved_workers <- as.integer(resolved_workers))
+
+  if (
+    length(resolved_workers) != 1L ||
+      is.na(resolved_workers) ||
+      resolved_workers < 1L
+  ) {
+    return(1L)
+  }
+
+  return(resolved_workers)
+}
+
 #' Read a batch of workbooks
 #' Reads one or more Excel workbooks, optionally restricting sheet names per
 #' file, and returns a combined list of data tables with any error messages.

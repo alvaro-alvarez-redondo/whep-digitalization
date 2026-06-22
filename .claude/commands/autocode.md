@@ -73,7 +73,7 @@ direction = "down"
    - Parse the output to extract the score (pass rate, issue count, timing, etc.)
    - Normalize to 0-100
    - Compute the weighted composite
-6. **Initialize `results.tsv`** with the baseline row.
+6. **Initialize `.claude/results.tsv`** with the baseline row.
 7. **Confirm and go**.
 
 If the user doesn't have benchmarks or linting set up, simplify — even just `tests` with weight 1.0 is enough to run the loop. You can add metrics incrementally.
@@ -117,7 +117,7 @@ Each metric is normalized to 0-100 and weighted according to `autocode.toml`. Th
 
 ## Logging results
 
-Log every experiment to `results.tsv` (tab-separated):
+Log every experiment to `.claude/results.tsv` (tab-separated):
 
 ```
 commit	composite	tests	performance	quality	complexity	status	description
@@ -130,14 +130,14 @@ commit	composite	tests	performance	quality	complexity	status	description
 
 LOOP FOREVER:
 
-1. **Assess.** Read `results.tsv` and the current source code. What's been tried? What's the weakest metric? Where's the opportunity?
+1. **Assess.** Read `.claude/results.tsv` and the current source code. What's been tried? What's the weakest metric? Where's the opportunity?
 2. **Hypothesize.** What specific change will improve the score, and why?
 3. **Edit source files.** One focused change per experiment.
 4. **Commit.** `git add -A && git commit -m "<description>"`
 5. **Run each metric command.** Redirect output: `command > run.log 2>&1`
 6. **Parse results yourself.** Extract pass rates, timing, lint counts from the output. Compute the composite score.
 7. **Handle failures.** If a command crashed, check `tail -n 50 run.log`. Fix simple bugs, skip broken ideas.
-8. **Log to results.tsv.**
+8. **Log to `.claude/results.tsv`.**
 9. **Keep or discard:**
    - Composite improved AND test pass rate >= baseline → keep
    - Otherwise → `git reset --hard HEAD~1`
@@ -185,7 +185,7 @@ Once the loop begins, do NOT pause to ask the human. If you run out of ideas: re
 
 ## Progress reporting
 
-Every 10 experiments, or when you achieve a notable improvement, write a brief summary to `progress.md`:
+Every 10 experiments, or when you achieve a notable improvement, write a brief summary to `.claude/progress.md`:
 
 ```markdown
 ## Experiment 10-20 summary

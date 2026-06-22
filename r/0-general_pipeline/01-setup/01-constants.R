@@ -64,7 +64,13 @@ get_pipeline_constants <- function() {
       normalize_unique_min_n = 256L,
       normalize_unique_sample_n = 2048L,
       normalize_unique_ratio_threshold = 0.85,
-      import_workbook_batch_size = 32L
+      import_workbook_batch_size = 32L,
+      # Import parallelism (opt-in). 1L = sequential (default; deterministic and
+      # the documented baseline). >1L runs the import read/transform via
+      # future::multisession with that many workers. Import is I/O + serialization
+      # bound, so returns diminish past ~4 workers (8 was slower than 4 in
+      # benchmarks); 4 is a good value when enabling on a multi-core machine.
+      import_parallel_workers = 1L
     ),
     defaults = list(
       unknown_document = "(unknown_document)",
@@ -88,29 +94,6 @@ get_pipeline_constants <- function() {
       )
     ),
     script_names = list(
-      general = c(
-        "00-dependencies/00-validation.R",
-        "00-dependencies/00-install.R",
-        "00-dependencies/00-load.R",
-        "00-dependencies/00-audit.R",
-        "01-setup/01-constants.R",
-        "01-setup/01-config.R",
-        "01-setup/01-directories.R",
-        "02-helpers/02-assertions.R",
-        "02-helpers/02-time-formatting.R",
-        "02-helpers/02-string-normalization.R",
-        "02-helpers/02-numeric-coercion.R",
-        "02-helpers/02-token-extraction.R",
-        "02-helpers/02-data-table.R",
-        "02-helpers/02-export-validation.R",
-        "02-helpers/02-config-accessors.R",
-        "02-helpers/02-progress.R",
-        "02-helpers/02-sorting.R",
-        "02-helpers/02-environment.R",
-        "02-helpers/02-checkpoints.R",
-        "02-helpers/02-data-cleaning.R",
-        "02-helpers/02-io-cache.R"
-      ),
       pipeline_stage_runners = c(
         "run_general_pipeline.R",
         "run_import_pipeline.R",
@@ -219,7 +202,8 @@ get_pipeline_constants <- function() {
 
   constants$options <- list(
     progress_enabled = "whep.progress.enabled",
-    checkpointing_enabled = "whep.checkpointing.enabled"
+    checkpointing_enabled = "whep.checkpointing.enabled",
+    import_parallel_workers = "whep.import.parallel_workers"
   )
 
   constants$patterns$footnote_non_alnum <- "[^a-z0-9 ;/*().,#%:-]+"
@@ -251,35 +235,6 @@ get_pipeline_constants <- function() {
 
   constants$tokens <- list(
     commodity_start_index = 7L
-  )
-
-  constants$script_names$general_modules <- list(
-    dependencies = c(
-      "00-validation.R",
-      "00-install.R",
-      "00-load.R",
-      "00-audit.R"
-    ),
-    setup = c(
-      "01-config.R",
-      "01-directories.R"
-    ),
-    helpers = c(
-      "02-assertions.R",
-      "02-time-formatting.R",
-      "02-string-normalization.R",
-      "02-numeric-coercion.R",
-      "02-token-extraction.R",
-      "02-data-table.R",
-      "02-export-validation.R",
-      "02-config-accessors.R",
-      "02-progress.R",
-      "02-sorting.R",
-      "02-environment.R",
-      "02-checkpoints.R",
-      "02-data-cleaning.R",
-      "02-io-cache.R"
-    )
   )
 
   constants$general_pipeline <- list(

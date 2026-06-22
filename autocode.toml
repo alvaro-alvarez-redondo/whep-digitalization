@@ -1,11 +1,22 @@
 [project]
 language = "r"
 source_files = ["r/**/*.R"]
-read_only = ["tests/**/*.R"]
+read_only = ["tests/**/*.R", "perf/**/*.R"]
 
 [metrics]
 
 [metrics.tests]
 command = "Rscript -e \"source(here::here('tests','test_helper.R'),echo=FALSE); dirs<-c(here::here('tests','0-general_pipeline'),here::here('tests','1-import_pipeline'),here::here('tests','2-post_processing_pipeline'),here::here('tests','3-export_pipeline'),here::here('tests','testthat','scripts')); tp<-0L;tf<-0L;for(d in dirs){if(dir.exists(d)&&length(list.files(d,pattern='^test[-_]'))>0){r<-tryCatch(testthat::test_dir(d,reporter='silent'),error=function(e)NULL);if(!is.null(r)){df<-as.data.frame(r);tp<-tp+sum(df[['passed']]);tf<-tf+sum(df[['failed']])}}}; cat(tp,'passed',tf,'failed',round(tp/max(1,tp+tf)*100,2),'pct\\n')\""
-weight = 1.0
+weight = 0.5
 direction = "up"
+
+# Performance: wall-clock of the CPU-bound post-processing stage on the real
+# imported dataset (120k-row deterministic subset, min of 2 reps). Lower is
+# better. The benchmark harness (perf/autocode_bench.R) is read-only ground
+# truth. Import is I/O-bound (readxl) and out of scope; postpro is the target.
+[metrics.performance]
+command = "WHEP_BENCH_ROWS=120000 WHEP_BENCH_REPS=2 Rscript perf/autocode_bench.R 2>&1"
+parser = "regex"
+pattern = "POSTPRO_SECONDS:\\s*([\\d.]+)"
+weight = 0.5
+direction = "down"
