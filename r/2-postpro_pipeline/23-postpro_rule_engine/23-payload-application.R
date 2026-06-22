@@ -54,21 +54,22 @@ apply_footnote_rules <- function(
   n_rows <- nrow(dataset_dt)
 
   # --- step 2: split footnotes by ";" into long format -----------------------
-  fn_long <- dataset_dt[,
-    .(
-      footnote_raw = unlist(strsplit(
-        as.character(footnotes),
-        ";",
-        fixed = TRUE
-      )),
-      footnote_index = seq_along(unlist(strsplit(
-        as.character(footnotes),
-        ";",
-        fixed = TRUE
-      )))
-    ),
-    by = row_id
-  ]
+  # Vectorized explosion: split the whole column once, then build the long table
+  # with rep/sequence. This avoids grouping by a unique row_id (which creates one
+  # data.table group per row and re-runs strsplit twice per group). The result is
+  # identical to the per-row grouping: row ids ascend with token order, NA cells
+  # yield a single NA token at index 1, and empty groups contribute no rows.
+  footnote_splits <- strsplit(
+    as.character(dataset_dt$footnotes),
+    ";",
+    fixed = TRUE
+  )
+  footnote_token_counts <- lengths(footnote_splits)
+  fn_long <- data.table::data.table(
+    row_id = rep.int(dataset_dt$row_id, footnote_token_counts),
+    footnote_raw = unlist(footnote_splits, use.names = FALSE),
+    footnote_index = sequence(footnote_token_counts)
+  )
   fn_long[, footnote := trimws(footnote_raw)]
   fn_long[trimws(footnote) == "", footnote := NA_character_]
 
