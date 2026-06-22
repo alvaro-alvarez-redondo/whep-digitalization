@@ -88,29 +88,6 @@ get_pipeline_constants <- function() {
       )
     ),
     script_names = list(
-      general = c(
-        "00-dependencies/00-validation.R",
-        "00-dependencies/00-install.R",
-        "00-dependencies/00-load.R",
-        "00-dependencies/00-audit.R",
-        "01-setup/01-constants.R",
-        "01-setup/01-config.R",
-        "01-setup/01-directories.R",
-        "02-helpers/02-assertions.R",
-        "02-helpers/02-time-formatting.R",
-        "02-helpers/02-string-normalization.R",
-        "02-helpers/02-numeric-coercion.R",
-        "02-helpers/02-token-extraction.R",
-        "02-helpers/02-data-table.R",
-        "02-helpers/02-export-validation.R",
-        "02-helpers/02-config-accessors.R",
-        "02-helpers/02-progress.R",
-        "02-helpers/02-sorting.R",
-        "02-helpers/02-environment.R",
-        "02-helpers/02-checkpoints.R",
-        "02-helpers/02-data-cleaning.R",
-        "02-helpers/02-io-cache.R"
-      ),
       pipeline_stage_runners = c(
         "run_general_pipeline.R",
         "run_import_pipeline.R",
@@ -251,35 +228,6 @@ get_pipeline_constants <- function() {
 
   constants$tokens <- list(
     commodity_start_index = 7L
-  )
-
-  constants$script_names$general_modules <- list(
-    dependencies = c(
-      "00-validation.R",
-      "00-install.R",
-      "00-load.R",
-      "00-audit.R"
-    ),
-    setup = c(
-      "01-config.R",
-      "01-directories.R"
-    ),
-    helpers = c(
-      "02-assertions.R",
-      "02-time-formatting.R",
-      "02-string-normalization.R",
-      "02-numeric-coercion.R",
-      "02-token-extraction.R",
-      "02-data-table.R",
-      "02-export-validation.R",
-      "02-config-accessors.R",
-      "02-progress.R",
-      "02-sorting.R",
-      "02-environment.R",
-      "02-checkpoints.R",
-      "02-data-cleaning.R",
-      "02-io-cache.R"
-    )
   )
 
   constants$general_pipeline <- list(
