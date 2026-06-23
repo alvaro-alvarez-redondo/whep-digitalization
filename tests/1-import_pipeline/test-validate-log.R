@@ -277,3 +277,58 @@ testthat::test_that("validate_long_dt handles empty data.table", {
   testthat::expect_true(is.list(result))
   testthat::expect_equal(nrow(result$data), 0L)
 })
+
+
+# --- detect_duplicates_dt identity key --------------------------------------
+
+testthat::test_that("detect_duplicates_dt does not flag rows differing only by polity", {
+  dt <- data.table::data.table(
+    hemisphere = c("N", "N"),
+    continent = c("Europe", "Europe"),
+    polity = c("Spain", "France"),
+    commodity = c("wheat", "wheat"),
+    variable = c("production", "production"),
+    unit = c("tonnes", "tonnes"),
+    year = c("2020", "2020"),
+    value = c("100", "100"),
+    document = c("file1.xlsx", "file1.xlsx")
+  )
+
+  result <- detect_duplicates_dt(dt)
+
+  testthat::expect_identical(result$errors, character(0))
+})
+
+testthat::test_that("detect_duplicates_dt does not flag rows differing only by unit", {
+  dt <- data.table::data.table(
+    polity = c("Spain", "Spain"),
+    commodity = c("wheat", "wheat"),
+    variable = c("production", "production"),
+    unit = c("kg", "tonnes"),
+    year = c("2020", "2020"),
+    value = c("100", "100"),
+    document = c("file1.xlsx", "file1.xlsx")
+  )
+
+  result <- detect_duplicates_dt(dt)
+
+  testthat::expect_identical(result$errors, character(0))
+})
+
+testthat::test_that("detect_duplicates_dt flags fully identical rows", {
+  dt <- data.table::data.table(
+    hemisphere = c("N", "N"),
+    continent = c("Europe", "Europe"),
+    polity = c("Spain", "Spain"),
+    commodity = c("wheat", "wheat"),
+    variable = c("production", "production"),
+    unit = c("tonnes", "tonnes"),
+    year = c("2020", "2020"),
+    value = c("100", "100"),
+    document = c("file1.xlsx", "file1.xlsx")
+  )
+
+  result <- detect_duplicates_dt(dt)
+
+  testthat::expect_equal(length(result$errors), 1L)
+})

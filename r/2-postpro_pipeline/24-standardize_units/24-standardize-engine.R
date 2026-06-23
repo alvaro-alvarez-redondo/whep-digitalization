@@ -122,13 +122,36 @@ apply_standardize_rules <- function(
   }
 
   if (nrow(prepared_rules_dt) > 0L) {
+    commodity_keys <- normalize_string(normalize_dt[[commodity_column]])
+
     prefix_applied_mask <- detected_prefixes != 1
     if (any(prefix_applied_mask)) {
       original_keys <- normalize_string(source_unit_raw_strings)
-      revert_mask <- prefix_applied_mask &
-        original_keys %in% prepared_rules_dt$unit_source_key
-      if (any(revert_mask)) {
-        revert_idx <- which(revert_mask)
+      prefix_idx <- which(prefix_applied_mask)
+
+      # A prefixed unit (e.g. "1000 egg") is reverted to its original,
+      # undecomposed form only when a rule can actually match the row in that
+      # form: either a commodity-specific rule or the "all commodity" fallback
+      # keyed on the original unit. Reverting merely because the original unit
+      # string appears under some *other* commodity would strand this row as
+      # unmatched, even when its decomposed base unit ("egg") has a specific or
+      # fallback rule that would otherwise apply. The check therefore mirrors
+      # the two-stage match below (specific commodity, then "all commodity").
+      specific_revert_lookup <- data.table::data.table(
+        commodity_match_key = commodity_keys[prefix_idx],
+        unit_source_key = original_keys[prefix_idx]
+      )
+      fallback_revert_lookup <- data.table::data.table(
+        commodity_match_key = "all commodity",
+        unit_source_key = original_keys[prefix_idx]
+      )
+
+      revert_matches <-
+        !is.na(prepared_rules_dt[specific_revert_lookup, unit_target]) |
+        !is.na(prepared_rules_dt[fallback_revert_lookup, unit_target])
+
+      if (any(revert_matches)) {
+        revert_idx <- prefix_idx[revert_matches]
         unit_keys[revert_idx] <- original_keys[revert_idx]
         numeric_values[revert_idx] <- coerce_numeric_safe(
           normalize_dt[[value_column]]
@@ -159,8 +182,6 @@ apply_standardize_rules <- function(
       matched_rule_counts = empty_matched_rule_counts_dt
     ))
   }
-
-  commodity_keys <- normalize_string(normalize_dt[[commodity_column]])
 
   # Stage 1: Try specific commodity matches
   join_input <- data.table::data.table(

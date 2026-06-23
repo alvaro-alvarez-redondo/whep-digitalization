@@ -1565,3 +1565,22 @@ testthat::test_that("__ANY__ target-condition skips append when note already exi
     "quality: high; composition: unspec"
   )
 })
+
+
+# --- wildcard token is read from the correct constants node ------------------
+
+testthat::test_that("rule_match_wildcard_token lives outside target_update_strategies", {
+  # The wildcard-dedup guard in apply_target_updates_with_strategy reads the
+  # token from get_pipeline_constants()$postpro$rule_match_wildcard_token; it is
+  # NOT a child of target_update_strategies (reading it there returns NULL and
+  # silently disables the guard).
+  constants <- get_pipeline_constants()
+
+  testthat::expect_identical(
+    constants$postpro$rule_match_wildcard_token,
+    "__ANY__"
+  )
+  testthat::expect_null(
+    get_target_update_strategy_config()$rule_match_wildcard_token
+  )
+})

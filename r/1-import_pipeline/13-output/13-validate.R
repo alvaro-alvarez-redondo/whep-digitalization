@@ -68,28 +68,50 @@ validate_mandatory_fields_dt <- function(dt, config) {
 detect_duplicates_dt <- function(dt) {
   dt_work <- ensure_data_table(dt)
 
+  # A genuine duplicate is a row that repeats the full observation identity, not
+  # just a subset of it. Keying on only commodity/variable/year/value/document
+  # (omitting hemisphere/continent/polity/unit) flags legitimately distinct rows
+  # — e.g. the same commodity/year reported by two polities, or in two units —
+  # as duplicates. Key on every identity column present, in canonical order.
+  identity_columns <- get_pipeline_constants()$sorting$stage_row_order
+  key_columns <- intersect(identity_columns, colnames(dt_work))
+
+  if (length(key_columns) == 0L) {
+    return(list(errors = character(0), data = dt_work))
+  }
+
   dup_counts <- dt_work[,
     .(duplicate_count = .N),
-    by = .(commodity, variable, year, value, document)
+    by = key_columns
   ]
 
   dup_rows <- dup_counts[duplicate_count > 1]
 
   errors <- if (nrow(dup_rows) > 0) {
+    key_descriptions <- vapply(
+      seq_len(nrow(dup_rows)),
+      function(row_index) {
+        paste(
+          key_columns,
+          "=",
+          vapply(
+            key_columns,
+            function(column_name) {
+              as.character(dup_rows[[column_name]][[row_index]])
+            },
+            character(1)
+          ),
+          collapse = ", "
+        )
+      },
+      character(1)
+    )
+
     paste0(
-      "duplicate entries detected for commodity '",
-      dup_rows$commodity,
-      "', variable '",
-      dup_rows$variable,
-      "', year '",
-      dup_rows$year,
-      "', value '",
-      dup_rows$value,
-      "', duplicate_count '",
+      "duplicate entries detected (count ",
       dup_rows$duplicate_count,
-      "' in document '",
-      dup_rows$document,
-      "'"
+      ") for ",
+      key_descriptions
     )
   } else {
     character(0)

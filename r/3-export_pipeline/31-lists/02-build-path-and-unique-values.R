@@ -58,7 +58,13 @@ compute_unique_column_values <- function(
 
   unique_values <- unique(column_values)
   has_missing_values <- anyNA(unique_values)
-  unique_values <- sort(unique_values[!is.na(unique_values)], na.last = TRUE)
+  # `method = "radix"` sorts in the locale-independent C collation order so the
+  # exported list ordering is identical across machines/locales (the pipeline's
+  # determinism contract). A bare `sort()` uses the session `LC_COLLATE`.
+  unique_values <- sort(
+    unique_values[!is.na(unique_values)],
+    method = "radix"
+  )
 
   if (has_missing_values) {
     unique_values <- c(blank_label, unique_values)
@@ -94,23 +100,25 @@ build_layer_tables_by_sheet <- function(layer_tables) {
     character(1)
   )
 
-  first_object_by_sheet <- tapply(
-    names(layer_tables),
-    detected_sheet_names,
-    function(object_names) object_names[[1]],
-    simplify = TRUE
-  )
-
   layer_by_sheet <- lapply(layer_order, function(sheet_name) {
-    selected_object <- first_object_by_sheet[sheet_name]
+    # Multiple detected objects can map to the same sheet label (e.g. two
+    # `*_raw` tables). Keeping only the first would silently drop the others'
+    # values from the list export, so union every object mapping to the sheet.
+    object_names <- names(layer_tables)[detected_sheet_names == sheet_name]
 
-    if (length(selected_object) == 0L || is.na(selected_object)) {
+    if (length(object_names) == 0L) {
       return(data.table::data.table())
     }
 
-    selected_object <- unname(selected_object)
+    sheet_tables <- lapply(object_names, function(object_name) {
+      data.table::as.data.table(layer_tables[[object_name]])
+    })
 
-    return(data.table::as.data.table(layer_tables[[selected_object]]))
+    return(data.table::rbindlist(
+      sheet_tables,
+      use.names = TRUE,
+      fill = TRUE
+    ))
   })
 
   names(layer_by_sheet) <- layer_order

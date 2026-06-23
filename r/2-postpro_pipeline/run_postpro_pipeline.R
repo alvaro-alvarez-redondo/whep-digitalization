@@ -170,10 +170,14 @@ run_postpro_pipeline_batch <- function(
     )
 
     progress("Post-Processing Pipeline Progress: collecting preflight checks")
+    # `expected_columns` must be the columns the post-processing stages require,
+    # not the dataset's own columns — passing the latter makes the check
+    # `all(expected %in% dataset)` trivially true and the preflight gate dead.
+    # Rely on the default required set (unit/value/commodity) defined by
+    # `collect_postpro_preflight()`.
     preflight_result <- collect_postpro_preflight(
       config = config,
-      dataset_columns = colnames(audited_raw_dt),
-      expected_columns = colnames(audited_raw_dt)
+      dataset_columns = colnames(audited_raw_dt)
     )
 
     progress("Post-Processing Pipeline Progress: asserting preflight checks")

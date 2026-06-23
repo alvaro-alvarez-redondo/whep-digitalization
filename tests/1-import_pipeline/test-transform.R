@@ -344,3 +344,42 @@ testthat::test_that("reshape_to_long converts data.frame input to data.table", {
   testthat::expect_true(data.table::is.data.table(result))
   testthat::expect_equal(nrow(result), 4L)
 })
+
+
+# --- convert_year_columns collision guard -----------------------------------
+
+testthat::test_that("convert_year_columns aborts when normalization collides names", {
+  # A calendar "2020" column and a crop-year "2020-21" column both normalize to
+  # "2020"; this must error rather than silently drop one column's data.
+  df <- data.table::data.table(
+    continent = "Asia",
+    polity = "Japan",
+    `2020` = "100",
+    `2020-21` = "205",
+    `2021` = "110"
+  )
+
+  testthat::expect_error(
+    convert_year_columns(
+      df,
+      list(column_order = c("continent", "polity", "year", "value"))
+    ),
+    "duplicate column names"
+  )
+})
+
+testthat::test_that("convert_year_columns normalizes crop-year headers without collision", {
+  df <- data.table::data.table(
+    continent = "Asia",
+    polity = "Japan",
+    `2019-20` = "90",
+    `2020-21` = "100"
+  )
+
+  result <- convert_year_columns(
+    df,
+    list(column_order = c("continent", "polity", "year", "value"))
+  )
+
+  testthat::expect_true(all(c("2019", "2020") %in% names(result)))
+})

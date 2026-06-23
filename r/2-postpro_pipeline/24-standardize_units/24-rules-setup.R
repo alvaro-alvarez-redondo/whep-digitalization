@@ -79,6 +79,23 @@ normalize_conversion_rule_columns <- function(conversion_dt) {
     target_names <- unname(rename_mapping[available_legacy])
     rename_mask <- !target_names %in% names(normalize_conversion_dt)
 
+    # Two legacy aliases can map to the same canonical column (e.g. both
+    # `multiplier` and `factor` -> `unit_factor`). Renaming both would create a
+    # duplicate-named column and make downstream typing/joins ambiguous, so
+    # reject the ambiguous header set rather than silently producing it.
+    targets_to_rename <- target_names[rename_mask]
+    if (anyDuplicated(targets_to_rename) > 0L) {
+      colliding_targets <- unique(targets_to_rename[duplicated(targets_to_rename)])
+      conflicting_aliases <- available_legacy[rename_mask][
+        targets_to_rename %in% colliding_targets
+      ]
+      cli::cli_abort(c(
+        "conversion rule columns map multiple legacy aliases to the same canonical column.",
+        "x" = "canonical column{?s}: {.val {colliding_targets}}",
+        "i" = "conflicting source column{?s}: {.val {conflicting_aliases}}"
+      ))
+    }
+
     if (any(rename_mask)) {
       data.table::setnames(
         normalize_conversion_dt,
@@ -329,13 +346,30 @@ validate_conversion_rules <- function(conversion_dt) {
     "standardization conversion"
   )
 
-  duplicate_rows <- conversion_dt[, .N, by = .(commodity_key, unit_source)][
-    N > 1L
-  ]
-  if (nrow(duplicate_rows) > 0L) {
-    cli::cli_abort(
-      "conversion rules contain duplicate {.val (commodity_key, unit_source)} definitions"
+  # `prepare_standardize_rules` keys the conversion join on the *normalized*
+  # commodity/unit values (see `commodity_match_key`/`unit_source_key` below),
+  # so uniqueness must be checked on those same normalized keys. Checking the
+  # raw values would let case/punctuation variants (e.g. "Wheat"/"wheat",
+  # "kg"/"KG") pass validation, then collapse to one key and produce a
+  # many-rows-per-input join that misaligns and crashes the engine. The
+  # chained-rule detection below already normalizes for the same reason.
+  duplicate_rows <- conversion_dt[,
+    .N,
+    by = .(
+      commodity_match_key = normalize_string(commodity_key),
+      unit_source_key = normalize_string(unit_source)
     )
+  ][N > 1L]
+  if (nrow(duplicate_rows) > 0L) {
+    colliding_keys <- paste(
+      duplicate_rows$commodity_match_key,
+      duplicate_rows$unit_source_key,
+      sep = " / "
+    )
+    cli::cli_abort(c(
+      "conversion rules contain duplicate {.val (commodity_key, unit_source)} definitions after normalization.",
+      "x" = "colliding normalized key{?s}: {.val {colliding_keys}}"
+    ))
   }
 
   unit_factor_num <- suppressWarnings(as.numeric(

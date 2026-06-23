@@ -122,9 +122,13 @@ apply_target_updates_with_strategy <- function(
 
       conditioned_updates <- conditioned_updates_raw[condition_matches]
 
+      # The wildcard token lives at `constants$postpro$rule_match_wildcard_token`,
+      # a sibling of `target_update_strategies` — not inside `strategy_config`.
+      # Reading it from `strategy_config` yielded NULL, so this guard never fired.
+      wildcard_token <- get_pipeline_constants()$postpro$rule_match_wildcard_token
       is_wildcard_condition <- !is.na(conditioned_updates[[condition_column]]) &
         trimws(as.character(conditioned_updates[[condition_column]])) ==
-          strategy_config$rule_match_wildcard_token
+          wildcard_token
 
       if (any(is_wildcard_condition)) {
         wildcard_idx <- which(is_wildcard_condition)
