@@ -99,6 +99,21 @@ convert_year_columns <- function(df, config) {
     clean_names
   )
 
+  # Year-header normalization can map two distinct source headers onto the same
+  # name (e.g. a calendar "2020" column and a crop-year "2020-21" column both
+  # become "2020"). `setnames` would silently create duplicate columns, and the
+  # downstream `melt` would then read only the first of them, dropping the
+  # other column's observations without warning. Surface the collision instead
+  # of corrupting the data, mirroring `validate_header_normalization`.
+  if (anyDuplicated(clean_names) > 0L) {
+    colliding_names <- unique(clean_names[duplicated(clean_names)])
+    cli::cli_abort(c(
+      "year-column normalization produced duplicate column names.",
+      "x" = "colliding normalized name{?s}: {.val {colliding_names}}",
+      "i" = "original columns: {.val {colnames(df)}}"
+    ))
+  }
+
   if (!identical(clean_names, colnames(df))) {
     data.table::setnames(df, old = colnames(df), new = clean_names)
   }

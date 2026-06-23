@@ -498,6 +498,78 @@ testthat::test_that("apply_standardize_rules 'all commodity' fallback with mixed
   testthat::expect_equal(result$data$value[[4]], 2000000)
 })
 
+testthat::test_that("apply_standardize_rules does not strand a prefixed unit owned by another commodity", {
+  # "1000 egg" has an explicit rule only for "chicken". A "duck" row carrying
+  # the same prefixed unit must NOT be reverted to "1000 egg" (which has no
+  # duck/all-commodity rule and would leave it unmatched); instead the prefix
+  # decomposes to base "egg" and the "all commodity" egg fallback applies.
+  mapped_dt <- data.table::data.table(
+    commodity = c("chicken", "duck"),
+    unit = c("1000 egg", "1000 egg"),
+    value = c("2", "3")
+  )
+
+  prepared_rules_dt <- prepare_standardize_rules(data.table::data.table(
+    commodity_key = c("chicken", "all commodity"),
+    unit_source = c("1000 egg", "egg"),
+    unit_target = c("tonne", "tonne"),
+    unit_factor = c(0.0539, 0.00005),
+    unit_offset = c(0, 0)
+  ))
+
+  result <- apply_standardize_rules(
+    mapped_dt = mapped_dt,
+    prepared_rules_dt = prepared_rules_dt,
+    unit_column = "unit",
+    value_column = "value",
+    commodity_column = "commodity"
+  )
+
+  testthat::expect_identical(result$matched_count, 2L)
+  testthat::expect_identical(result$unmatched_count, 0L)
+
+  # chicken keeps its explicit prefixed rule: 2 * 0.0539
+  testthat::expect_equal(result$data$value[[1]], 2 * 0.0539)
+  testthat::expect_equal(result$data$unit[[1]], "tonne")
+
+  # duck decomposes to base "egg" and uses the fallback: (3 * 1000) * 0.00005
+  testthat::expect_equal(result$data$value[[2]], 3 * 1000 * 0.00005)
+  testthat::expect_equal(result$data$unit[[2]], "tonne")
+})
+
+testthat::test_that("apply_standardize_rules reverts a prefixed unit matched only by the 'all commodity' rule", {
+  # "1000 egg" exists only as an "all commodity" rule (no specific-commodity
+  # owner). A duck row must still revert to the prefixed form so that the
+  # all-commodity prefixed rule applies, rather than decomposing to base "egg"
+  # (which has no rule here) and going unmatched.
+  mapped_dt <- data.table::data.table(
+    commodity = "duck",
+    unit = "1000 egg",
+    value = "3"
+  )
+
+  prepared_rules_dt <- prepare_standardize_rules(data.table::data.table(
+    commodity_key = "all commodity",
+    unit_source = "1000 egg",
+    unit_target = "tonne",
+    unit_factor = 0.0539,
+    unit_offset = 0
+  ))
+
+  result <- apply_standardize_rules(
+    mapped_dt = mapped_dt,
+    prepared_rules_dt = prepared_rules_dt,
+    unit_column = "unit",
+    value_column = "value",
+    commodity_column = "commodity"
+  )
+
+  testthat::expect_identical(result$matched_count, 1L)
+  testthat::expect_identical(result$unmatched_count, 0L)
+  testthat::expect_equal(result$data$value[[1]], 3 * 0.0539)
+  testthat::expect_equal(result$data$unit[[1]], "tonne")
+})
+
 testthat::test_that("validate_conversion_rules allows chained rules when one is 'all commodity'", {
   rules_dt <- data.table::data.table(
     commodity_key = c("all commodity", "all commodity", "wheat"),
@@ -826,4 +898,54 @@ testthat::test_that("attach_standardize_diagnostics omits aggregation counts whe
 
   testthat::expect_false(diag$aggregation_enabled)
   testthat::expect_null(diag$rows_before_aggregation)
+})
+
+
+# --- normalized-key duplicates and legacy-alias collisions ------------------
+
+testthat::test_that("validate_conversion_rules rejects case-variant duplicate keys", {
+  # "Wheat"/"wheat" are distinct raw strings but normalize to the same join
+  # key; without this the engine builds a duplicate key and crashes.
+  rules_dt <- data.table::data.table(
+    commodity_key = c("Wheat", "wheat"),
+    unit_source = c("kg", "kg"),
+    unit_target = c("tonne", "tonne"),
+    unit_factor = c(0.001, 0.001),
+    unit_offset = c(0, 0)
+  )
+
+  testthat::expect_error(validate_conversion_rules(rules_dt), "duplicate")
+})
+
+testthat::test_that("prepare_standardize_rules produces unique join keys", {
+  rules_dt <- data.table::data.table(
+    commodity_key = c("wheat", "rice"),
+    unit_source = c("kg", "kg"),
+    unit_target = c("tonne", "tonne"),
+    unit_factor = c(0.001, 0.001),
+    unit_offset = c(0, 0)
+  )
+
+  prepared <- prepare_standardize_rules(rules_dt)
+  key_dt <- unique(prepared[, .(commodity_match_key, unit_source_key)])
+
+  testthat::expect_equal(nrow(key_dt), nrow(prepared))
+})
+
+testthat::test_that("normalize_conversion_rule_columns rejects colliding legacy aliases", {
+  # Both `multiplier` and `factor` map to `unit_factor`; renaming both would
+  # create a duplicate-named column.
+  rules_dt <- data.table::data.table(
+    commodity_key = "wheat",
+    unit_source = "kg",
+    unit_target = "tonne",
+    multiplier = 0.001,
+    factor = 0.001,
+    unit_offset = 0
+  )
+
+  testthat::expect_error(
+    normalize_conversion_rule_columns(rules_dt),
+    "same\\s+canonical\\s+column"
+  )
 })

@@ -136,6 +136,19 @@ export_lists <- function(
     union_columns = union_columns
   )
 
+  # Each column is written to `unique_<normalize_filename(column)>.xlsx`. If two
+  # configured columns normalize to the same stem they would target one path —
+  # a silent overwrite (sequential) or a write race (parallel). Fail loudly.
+  export_path_stems <- normalize_filename(export_columns)
+  if (anyDuplicated(export_path_stems) > 0L) {
+    colliding_stems <- unique(export_path_stems[duplicated(export_path_stems)])
+    cli::cli_abort(c(
+      "lists export failed: configured columns map to the same workbook filename.",
+      "x" = "colliding filename stem{?s}: {.val {colliding_stems}}",
+      "i" = "configured columns: {.val {export_columns}}"
+    ))
+  }
+
   use_parallel <- !inherits(future::plan(), "sequential") &&
     length(export_columns) > 1L
 

@@ -397,3 +397,51 @@ testthat::test_that("export_lists includes document only when explicitly configu
   testthat::expect_true("polity" %in% names(output_paths))
   testthat::expect_true("document" %in% names(output_paths))
 })
+
+
+# --- bug-fix regressions: determinism, union, filename collisions -----------
+
+testthat::test_that("compute_unique_column_values sorts in locale-independent radix order", {
+  input_dt <- data.table::data.table(
+    commodity = c("Zebra", "apple", "Banana", "apple")
+  )
+
+  result <- compute_unique_column_values(input_dt, "commodity")
+
+  # radix (C-locale) order: uppercase before lowercase, identical across locales
+  testthat::expect_identical(result, c("Banana", "Zebra", "apple"))
+})
+
+testthat::test_that("build_layer_tables_by_sheet unions multiple objects mapping to one sheet", {
+  layer_tables <- list(
+    alpha_raw = data.table::data.table(polity = c("a", "b")),
+    beta_raw = data.table::data.table(polity = c("c"))
+  )
+
+  result <- build_layer_tables_by_sheet(layer_tables)
+
+  testthat::expect_setequal(result$raw$polity, c("a", "b", "c"))
+  testthat::expect_equal(nrow(result$raw), 3L)
+})
+
+testthat::test_that("export_lists aborts when configured columns collide on filename", {
+  config <- build_test_config()
+  config$export_config$lists_to_export <- c("polity", "Polity")
+
+  data_objects <- list(
+    demo_raw = data.table::data.table(polity = c("a"), Polity = c("a")),
+    demo_clean = data.table::data.table(polity = c("a"), Polity = c("a")),
+    demo_normalize = data.table::data.table(polity = c("a"), Polity = c("a")),
+    demo_harmonize = data.table::data.table(polity = c("a"), Polity = c("a"))
+  )
+
+  testthat::expect_error(
+    export_lists(
+      config = config,
+      data_objects = data_objects,
+      overwrite = TRUE,
+      env = new.env(parent = emptyenv())
+    ),
+    "same\\s+workbook\\s+filename"
+  )
+})
