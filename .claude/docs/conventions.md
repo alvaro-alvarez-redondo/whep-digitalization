@@ -136,6 +136,24 @@ parallelize the other two stages, set a non-sequential plan yourself before call
 - **Multi-pass cycle policy** defaults to `"warn"` (continues) rather than `"abort"`;
   clean and harmonize each run up to 10 passes and stop early on convergence.
 
+## Scratch files & temp hygiene
+
+Analysis is fine to do with throwaway scripts and logs, but **the working tree must be
+clean before you commit.** Treat the following as temporary and delete them before
+committing:
+
+- run logs / captured stdout (`*.out`),
+- one-off analysis, benchmark, profiling, or verification scripts you created for a single
+  investigation.
+
+Keep them gitignored while in use — `.gitignore` already covers `perf/_*.R` and root
+`*.out` — and remove them once their results are recorded. The **durable** record of a
+performance or correctness investigation goes in [`progress.md`](../progress.md),
+[`results.tsv`](../results.tsv), and memory; the committed, canonical perf harness is
+`perf/autocode_bench.R` (read-only ground truth). Only keep a scratch script long-term if
+it is genuinely reusable (e.g. a byte-identical output checker) — and even then, gitignored,
+never half-finished one-offs left lying around.
+
 ## Maintaining these docs
 
 These docs exist so a session can understand the repo by reading rather than rescanning.

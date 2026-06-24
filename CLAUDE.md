@@ -53,6 +53,12 @@ readme-generation). The full map of this layer is in [.claude/README.md](.claude
 - **Iterate on complex refactors.** Do not stop at the first correct version; reassess for
   efficiency, modularity, and clarity. See
   [.claude/guidelines/refactoring.md](.claude/guidelines/refactoring.md).
+- **Clean up temporary files before committing.** Write throwaway analysis, benchmark,
+  profiling, and verification artifacts (e.g. `*.out` run logs, one-off `*.R` scripts) to
+  gitignored scratch paths, and **delete them before committing** — leave the working tree
+  clean. Keep only files with durable, reusable value; never let temporary files linger in
+  a commit or the tree. Durable results belong in [.claude/progress.md](.claude/progress.md)
+  / [.claude/results.tsv](.claude/results.tsv) / memory, not in scratch logs.
 - **Tone:** strict and technical. No marketing language, no conversational filler in code,
   comments, or docs.
 

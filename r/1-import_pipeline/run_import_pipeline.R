@@ -71,25 +71,56 @@ run_import_pipeline <- function(config) {
     source(here::here("r", "1-import_pipeline", script_name), echo = FALSE)
   }
 
-  # Opt-in import parallelism (default sequential). When more than one worker is
-  # requested, set a multisession plan for this call only and restore the
-  # caller's plan on exit, so the global future::plan() change stays scoped to
-  # this orchestration entry point. The read/transform stages dispatch through
-  # future.apply automatically under a non-sequential plan; output is identical
-  # to sequential (future.apply preserves order; results are not seed-dependent).
-  import_parallel_workers <- resolve_import_parallel_workers(config)
-  if (import_parallel_workers > 1L) {
-    previous_future_plan <- future::plan(
-      future::multisession,
-      workers = import_parallel_workers
-    )
-    on.exit(future::plan(previous_future_plan), add = TRUE)
-  }
-
   file_list_dt <- discover_files(config$paths$data$import$raw)
 
   if (nrow(file_list_dt) == 0) {
     cli::cli_abort("no excel files were found. pipeline terminated")
+  }
+
+  # Import parallelism. resolve_import_effective_workers() auto-enables parallel
+  # reading by default (min(4, cores - 1) workers) while honoring any explicit
+  # override — the whep.import.parallel_workers option or
+  # config$performance$import_parallel_workers, including 1 for sequential. A
+  # multisession plan is set for this call only and restored on exit, so the
+  # global future::plan() change stays scoped to this orchestration entry point.
+  # Parallelism engages only when there is more than one workbook batch (small
+  # reads, e.g. tests, stay sequential), and falls back to sequential if
+  # multisession workers cannot start, so default-on never aborts a run. The
+  # read/transform stages dispatch through future.apply under a non-sequential
+  # plan; output is identical to sequential (future.apply preserves input order;
+  # results are not seed-dependent).
+  import_parallel_workers <- resolve_import_effective_workers(config)
+  import_batch_count <- ceiling(
+    nrow(file_list_dt) / resolve_import_workbook_batch_size(config)
+  )
+
+  if (import_parallel_workers > 1L && import_batch_count > 1L) {
+    caller_future_plan <- future::plan()
+    parallel_plan_ready <- tryCatch(
+      {
+        future::plan(
+          future::multisession,
+          workers = import_parallel_workers
+        )
+        # Force a worker to start now so an inability to spawn surfaces here
+        # (warn + sequential) instead of aborting mid-read.
+        future::value(future::future(TRUE, seed = NULL))
+        TRUE
+      },
+      error = function(read_plan_error) {
+        cli::cli_warn(c(
+          "import parallelism unavailable; reading sequentially.",
+          "!" = conditionMessage(read_plan_error)
+        ))
+        FALSE
+      }
+    )
+
+    if (isTRUE(parallel_plan_ready)) {
+      on.exit(future::plan(caller_future_plan), add = TRUE)
+    } else {
+      future::plan(caller_future_plan)
+    }
   }
 
   total_steps <- (2 * nrow(file_list_dt)) + 4

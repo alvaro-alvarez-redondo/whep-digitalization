@@ -238,47 +238,90 @@ apply_footnote_rules <- function(
 
   # --- step 7: reconstruct footnotes per row ---------------------------------
   # Resolve each token deterministically across cartesian duplicates:
-  # remove beats replace, replace beats unchanged original token.
+  # remove beats replace, replace beats unchanged original token. This is the
+  # vectorized equivalent of a per-(row_id, footnote_index) R reduction: GForce
+  # aggregations replace evaluating an R closure once per token group (there are
+  # as many groups as footnote tokens across the dataset). `footnote` is constant
+  # within a token group, and `is_replace` implies a non-NA `footnote_final`
+  # (set to the rule's source-result in step 5), so the three branches reduce to:
+  # any-remove -> NA; else any-replace -> first replacement value (in join order);
+  # else the original token (which may itself be NA).
   token_resolution <- joined[,
     .(
-      footnote_final = {
-        if (any(is_remove, na.rm = TRUE)) {
-          NA_character_
-        } else if (any(is_replace, na.rm = TRUE)) {
-          replacement_values <- footnote_final[
-            is_replace & !is.na(footnote_final)
-          ]
-          if (length(replacement_values) == 0L) {
-            NA_character_
-          } else {
-            replacement_values[[1L]]
-          }
-        } else {
-          original_values <- footnote[!is.na(footnote)]
-          if (length(original_values) == 0L) {
-            NA_character_
-          } else {
-            original_values[[1L]]
-          }
-        }
-      }
+      any_remove = any(is_remove),
+      any_replace = any(is_replace),
+      footnote = footnote[1L]
     ),
     by = .(row_id, footnote_index)
   ]
-  data.table::setorder(token_resolution, row_id, footnote_index)
-  reconstructed <- token_resolution[,
-    .(
-      footnotes_new = {
-        valid <- footnote_final[!is.na(footnote_final)]
-        if (length(valid) == 0L) {
-          NA_character_
-        } else {
-          paste(valid, collapse = "; ")
-        }
-      }
-    ),
-    by = row_id
+
+  replacement_first <- joined[
+    is_replace == TRUE,
+    .(replacement_value = footnote_final[1L]),
+    by = .(row_id, footnote_index)
   ]
+  token_resolution[
+    replacement_first,
+    replacement_value := i.replacement_value,
+    on = .(row_id, footnote_index)
+  ]
+
+  token_resolution[, footnote_final := data.table::fifelse(
+    any_remove,
+    NA_character_,
+    data.table::fifelse(any_replace, replacement_value, footnote)
+  )]
+  data.table::setorder(token_resolution, row_id, footnote_index)
+
+  # Reconstruct per row: concatenate the non-NA resolved tokens in
+  # footnote_index order. Single-token rows need no paste; only multi-token rows
+  # are pasted. Every row_id present in the token table must appear in the result
+  # so its footnotes are rewritten -- including rows whose tokens all resolved to
+  # NA, which map to NA footnotes.
+  present_row_ids <- unique(token_resolution$row_id)
+  valid_tokens <- token_resolution[!is.na(footnote_final)]
+  if (nrow(valid_tokens) > 0L) {
+    valid_tokens[, token_count := .N, by = row_id]
+    single_token <- valid_tokens[
+      token_count == 1L,
+      .(row_id, footnotes_new = footnote_final)
+    ]
+    multi_token <- valid_tokens[token_count > 1L]
+    multi_collapsed <- if (nrow(multi_token) > 0L) {
+      multi_token[,
+        .(footnotes_new = paste(footnote_final, collapse = "; ")),
+        by = row_id
+      ]
+    } else {
+      data.table::data.table(
+        row_id = integer(0),
+        footnotes_new = character(0)
+      )
+    }
+    reconstructed <- data.table::rbindlist(
+      list(single_token, multi_collapsed),
+      use.names = TRUE
+    )
+  } else {
+    reconstructed <- data.table::data.table(
+      row_id = integer(0),
+      footnotes_new = character(0)
+    )
+  }
+
+  rows_all_na <- setdiff(present_row_ids, reconstructed$row_id)
+  if (length(rows_all_na) > 0L) {
+    reconstructed <- data.table::rbindlist(
+      list(
+        reconstructed,
+        data.table::data.table(
+          row_id = rows_all_na,
+          footnotes_new = NA_character_
+        )
+      ),
+      use.names = TRUE
+    )
+  }
 
   # update footnotes in dataset
   dataset_dt[reconstructed, footnotes := i.footnotes_new, on = "row_id"]
