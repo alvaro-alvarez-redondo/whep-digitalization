@@ -124,11 +124,31 @@ diagnostics; the postpro stage is bit-deterministic run-to-run, confirmed).
   Dropped it (collapse is now last-value + `.N`, GForce); `uniqueN`/`paste` computed over the
   multi-candidate subset only. **17.70s -> 11.41s vs exp-2 (-36%).**
 
-### In progress
-- Exhaustive candidate-search workflow (8 read-only finders across every postpro hot path
-  -> adversarial byte-identical vetting -> ranked synthesis) to find any remaining
-  behavior-preserving wins before declaring the engine near its optimum.
+- **exp-4 (DISCARD):** inner join (`nomatch = NULL`) on the conditional-group source-key
+  join. Byte-identical and tests 1007/0, but **11.24s vs 10.14s exp-3 (+11% regression)**,
+  back-to-back. The clean rules match a large fraction of rows, so the outer join's
+  unmatched-NA placeholders are few; `nomatch = NULL` adds filtering overhead instead of
+  saving it. Reverted. (Informative: the conditional-group cost is the inherent bmerge +
+  per-matched-row work, not NA-row materialization.)
+
+### Exhaustive search
+- Ran an 8-finder workflow (one read-only analyst per hot path) -> adversarial
+  byte-identical vetting. It generated **72 candidates**; vetting/synthesis was cut short by
+  a session limit. The high-value safe candidates coincide with exp-1/2/3 (already applied).
+  Remaining candidates are either **sub-noise** (`<5%`: `normalize_string` memoization — the
+  cardinality-aware path already minimizes stringi cost; `chmatch` vs `match`) or
+  **behavior-risky** and intentionally NOT applied under the exact-output mandate: pruning
+  the 4-pass re-application via `trigger_columns` (transitive rule cascades could change
+  output) and a cheaper cycle-detection signature than the exact per-pass `serialize()` (a
+  hash could collide -> false convergence -> divergent output).
+
+### jun24 result (validated)
+- Kept exp-1 + exp-2 + exp-3. **Cumulative postpro 19.91s -> 11.33s on the 120k subset
+  (-43%, 1.76x), back-to-back, same window.** Full real dataset (357,076 x 11): postpro
+  output **byte-identical** to `main` (exact, unsorted, column-by-column + ts-scrubbed
+  diagnostics). Tests **1007/0** throughout. No dependency, contract, or determinism change.
 
 ## Current state
-- 0 known failures across all 5 suites. Branch `autocode/jun24`: postpro ~23% faster on the
-  120k subset vs `main` from exp-1+exp-2, then a further -36% from exp-3 (cumulative ~1.9x).
+- 0 known failures across all 5 suites. Branch `autocode/jun24`: postpro **~1.76x faster**
+  on the 120k subset vs `main` (exp-1 footnote-reconstruction vectorization + exp-2 rule
+  micro-opts + exp-3 GForce collapse restoration); full-dataset output byte-identical.
