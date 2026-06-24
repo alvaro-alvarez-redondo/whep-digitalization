@@ -205,46 +205,53 @@ apply_target_updates_with_strategy <- function(
       ))
     }
 
+    # `last_rule_wins` only needs the last candidate per row and the candidate
+    # count; the distinct-candidate count and the candidate paste are required
+    # solely to emit overwrite events, which exist only for rows that received
+    # more than one candidate. Keeping the all-rows collapse to last-value + .N
+    # avoids a per-group uniqueN()/paste() over the single-candidate majority;
+    # both are computed over the (small) multi-candidate subset alone.
     updates_collapsed <- updates_dt[,
       .(
         update_value = update_value[.N],
-        candidate_count = .N,
-        unique_candidate_count = data.table::uniqueN(update_value)
+        candidate_count = .N
       ),
       by = .(row_id_internal)
     ]
 
-    # `candidate_values` is a per-group paste consumed only by overwrite events,
-    # which are emitted solely for rows with more than one distinct candidate.
-    # Computing the paste for just those conflict rows avoids pasting every
-    # single-candidate group (the overwhelming majority).
-    conflict_collapsed <- updates_collapsed[
-      candidate_count > 1L & unique_candidate_count > 1L
+    multi_candidate_ids <- updates_collapsed[
+      candidate_count > 1L,
+      row_id_internal
     ]
 
-    overwrite_events <- if (nrow(conflict_collapsed) > 0L) {
-      conflict_candidate_values <- updates_dt[
-        row_id_internal %in% conflict_collapsed$row_id_internal,
-        .(candidate_values = paste(update_value, collapse = "; ")),
+    overwrite_events <- if (length(multi_candidate_ids) > 0L) {
+      conflict_summary <- updates_dt[
+        row_id_internal %in% multi_candidate_ids,
+        .(
+          candidate_count = .N,
+          unique_candidate_count = data.table::uniqueN(update_value),
+          selected_value = update_value[.N],
+          candidate_values = paste(update_value, collapse = "; ")
+        ),
         by = .(row_id_internal)
-      ]
-      conflict_collapsed[
-        conflict_candidate_values,
-        candidate_values := i.candidate_values,
-        on = "row_id_internal"
-      ]
-      conflict_collapsed[, .(
-        dataset_name = dataset_name,
-        execution_stage = execution_stage,
-        rule_file_identifier = rule_file_identifier,
-        column_source = source_column,
-        column_target = target_column,
-        row_id = as.integer(row_id_internal),
-        candidate_count = as.integer(candidate_count),
-        unique_candidate_count = as.integer(unique_candidate_count),
-        selected_value = as.character(update_value),
-        candidate_values = as.character(candidate_values)
-      )]
+      ][unique_candidate_count > 1L]
+
+      if (nrow(conflict_summary) > 0L) {
+        conflict_summary[, .(
+          dataset_name = dataset_name,
+          execution_stage = execution_stage,
+          rule_file_identifier = rule_file_identifier,
+          column_source = source_column,
+          column_target = target_column,
+          row_id = as.integer(row_id_internal),
+          candidate_count = as.integer(candidate_count),
+          unique_candidate_count = as.integer(unique_candidate_count),
+          selected_value = as.character(selected_value),
+          candidate_values = as.character(candidate_values)
+        )]
+      } else {
+        empty_events
+      }
     } else {
       empty_events
     }
