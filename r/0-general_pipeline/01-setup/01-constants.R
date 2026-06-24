@@ -65,12 +65,16 @@ get_pipeline_constants <- function() {
       normalize_unique_sample_n = 2048L,
       normalize_unique_ratio_threshold = 0.85,
       import_workbook_batch_size = 32L,
-      # Import parallelism (opt-in). 1L = sequential (default; deterministic and
-      # the documented baseline). >1L runs the import read/transform via
-      # future::multisession with that many workers. Import is I/O + serialization
-      # bound, so returns diminish past ~4 workers (8 was slower than 4 in
-      # benchmarks); 4 is a good value when enabling on a multi-core machine.
-      import_parallel_workers = 1L
+      # Import parallelism. "auto" (default) auto-enables parallel reading at
+      # min(4, cores - 1) workers via future::multisession (resolved by
+      # resolve_import_effective_workers()); output is identical to sequential.
+      # An explicit integer override (the whep.import.parallel_workers option or
+      # config$performance$import_parallel_workers) is always honored, with 1L =
+      # sequential. Import is I/O + serialization bound, so returns diminish past
+      # ~4 workers (8 was slower than 4 in benchmarks). Note: the literal-count
+      # resolver resolve_import_parallel_workers() treats "auto" as 1L
+      # (sequential), so its documented default-sequential contract is preserved.
+      import_parallel_workers = "auto"
     ),
     defaults = list(
       unknown_document = "(unknown_document)",

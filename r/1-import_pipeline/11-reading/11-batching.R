@@ -97,6 +97,63 @@ resolve_import_parallel_workers <- function(config) {
   return(resolved_workers)
 }
 
+#' Resolve the effective import worker count for a pipeline run
+#' Honors an explicit worker count — the `whep.import.parallel_workers` option or
+#' `config$performance$import_parallel_workers` (including `1` for sequential) —
+#' via `resolve_import_parallel_workers()`. When neither is set, import
+#' parallelism is auto-enabled at `min(4, cores - 1)` workers (readxl reading is
+#' I/O + serialization bound, so returns diminish past ~4 workers). The return is
+#' always `>= 1`. `run_import_pipeline()` additionally engages a parallel plan
+#' only when there is more than one workbook batch, and falls back to sequential
+#' if multisession workers cannot start.
+#' @param config Named configuration list.
+#' @return Positive integer scalar worker count (>= 1).
+#' @examples
+#' \dontrun{
+#' resolve_import_effective_workers(config)
+#' }
+resolve_import_effective_workers <- function(config) {
+  assert_or_abort(checkmate::check_list(config, any.missing = FALSE))
+
+  constants <- get_pipeline_constants()
+
+  # Resolve the raw setting in the same priority order as the literal resolver:
+  # option > config$performance > constant. The constant default is the "auto"
+  # sentinel; any explicit integer override (including 1 for sequential) wins.
+  raw_value <- constants$performance$import_parallel_workers
+  if (
+    is.list(config$performance) &&
+      !is.null(config$performance$import_parallel_workers)
+  ) {
+    raw_value <- config$performance$import_parallel_workers
+  }
+  raw_value <- getOption(
+    constants$options$import_parallel_workers,
+    raw_value
+  )
+
+  is_auto <- is.character(raw_value) &&
+    length(raw_value) == 1L &&
+    identical(tolower(trimws(raw_value)), "auto")
+
+  if (!is_auto) {
+    # Explicit (or non-"auto") value: defer to the literal-count resolver, which
+    # honors integers and maps anything missing/invalid to 1L (sequential).
+    return(resolve_import_parallel_workers(config))
+  }
+
+  detected_cores <- suppressWarnings(parallel::detectCores())
+  if (
+    length(detected_cores) != 1L ||
+      is.na(detected_cores) ||
+      detected_cores < 1L
+  ) {
+    detected_cores <- 1L
+  }
+
+  return(max(1L, min(4L, detected_cores - 1L)))
+}
+
 #' Read a batch of workbooks
 #' Reads one or more Excel workbooks, optionally restricting sheet names per
 #' file, and returns a combined list of data tables with any error messages.
