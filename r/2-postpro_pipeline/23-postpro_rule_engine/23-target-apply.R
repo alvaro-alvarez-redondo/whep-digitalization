@@ -181,7 +181,7 @@ apply_target_updates_with_strategy <- function(
 
     use_unique_row_fast_path <-
       resolve_last_rule_wins_unique_row_fast_path_enabled() &&
-      data.table::uniqueN(updates_dt$row_id_internal) == nrow(updates_dt)
+      anyDuplicated(updates_dt$row_id_internal) == 0L
 
     if (use_unique_row_fast_path) {
       previous_values <- dataset_dt[[target_column]][updates_dt$row_id_internal]
@@ -209,15 +209,31 @@ apply_target_updates_with_strategy <- function(
       .(
         update_value = update_value[.N],
         candidate_count = .N,
-        unique_candidate_count = data.table::uniqueN(update_value),
-        candidate_values = paste(update_value, collapse = "; ")
+        unique_candidate_count = data.table::uniqueN(update_value)
       ),
       by = .(row_id_internal)
     ]
 
-    overwrite_events <- updates_collapsed[
-      candidate_count > 1L & unique_candidate_count > 1L,
-      .(
+    # `candidate_values` is a per-group paste consumed only by overwrite events,
+    # which are emitted solely for rows with more than one distinct candidate.
+    # Computing the paste for just those conflict rows avoids pasting every
+    # single-candidate group (the overwhelming majority).
+    conflict_collapsed <- updates_collapsed[
+      candidate_count > 1L & unique_candidate_count > 1L
+    ]
+
+    overwrite_events <- if (nrow(conflict_collapsed) > 0L) {
+      conflict_candidate_values <- updates_dt[
+        row_id_internal %in% conflict_collapsed$row_id_internal,
+        .(candidate_values = paste(update_value, collapse = "; ")),
+        by = .(row_id_internal)
+      ]
+      conflict_collapsed[
+        conflict_candidate_values,
+        candidate_values := i.candidate_values,
+        on = "row_id_internal"
+      ]
+      conflict_collapsed[, .(
         dataset_name = dataset_name,
         execution_stage = execution_stage,
         rule_file_identifier = rule_file_identifier,
@@ -228,8 +244,10 @@ apply_target_updates_with_strategy <- function(
         unique_candidate_count = as.integer(unique_candidate_count),
         selected_value = as.character(update_value),
         candidate_values = as.character(candidate_values)
-      )
-    ]
+      )]
+    } else {
+      empty_events
+    }
 
     previous_values <- dataset_dt[[target_column]][
       updates_collapsed$row_id_internal
@@ -444,14 +462,25 @@ apply_conditional_rule_group <- function(
     allow.cartesian = TRUE
   ]
 
-  target_condition_matches <- match_rule_target_condition_values(
-    current_values = target_values_pre_update[joined_dt$row_id],
-    condition_values = joined_dt$value_target_raw,
-    tokenized_target = target_column %in% tokenized_target_condition_columns,
-    apply_match_normalization = apply_target_condition_normalization
-  )
+  # `matched_row_mask` ANDs the source-key match with the target-condition match,
+  # so the (normalization-heavy) condition match is only consequential for rows
+  # that already matched a rule on the source key. Restricting it to those rows
+  # is equivalent and skips normalizing target/condition values for the unmatched
+  # majority of the joined table.
+  source_matched_mask <- !is.na(joined_dt$column_source)
+  target_condition_matches <- logical(length(source_matched_mask))
+  if (any(source_matched_mask)) {
+    matched_row_ids <- joined_dt$row_id[source_matched_mask]
+    target_condition_matches[source_matched_mask] <-
+      match_rule_target_condition_values(
+        current_values = target_values_pre_update[matched_row_ids],
+        condition_values = joined_dt$value_target_raw[source_matched_mask],
+        tokenized_target = target_column %in% tokenized_target_condition_columns,
+        apply_match_normalization = apply_target_condition_normalization
+      )
+  }
 
-  matched_row_mask <- !is.na(joined_dt$column_source) & target_condition_matches
+  matched_row_mask <- source_matched_mask & target_condition_matches
   source_update_mask <- matched_row_mask &
     !is.na(joined_dt$source_value_column_present) &
     as.logical(joined_dt$source_value_column_present)
