@@ -10,13 +10,17 @@ command = "Rscript -e \"source(here::here('tests','test_helper.R'),echo=FALSE); 
 weight = 0.5
 direction = "up"
 
-# Performance: wall-clock of the CPU-bound post-processing stage on the real
-# imported dataset (120k-row deterministic subset, min of 2 reps). Lower is
-# better. The benchmark harness (perf/autocode_bench.R) is read-only ground
-# truth. Import is I/O-bound (readxl) and out of scope; postpro is the target.
+# Performance: wall-clock of the full pipeline (general + import + postpro) on
+# the real dataset (120k-row deterministic postpro subset, min of 2 reps).
+# Lower is better. The benchmark harness (perf/autocode_bench.R) is read-only
+# ground truth and reports per-stage times for targeting. All stages are fair
+# game for optimization — focus on whichever has the most headroom.
+#
+# Set WHEP_BENCH_CACHE_IMPORT=1 for focused postpro iteration (skips import
+# timing). Default measures everything.
 [metrics.performance]
 command = "WHEP_BENCH_ROWS=120000 WHEP_BENCH_REPS=2 Rscript perf/autocode_bench.R 2>&1"
 parser = "regex"
-pattern = "POSTPRO_SECONDS:\\s*([\\d.]+)"
+pattern = "PIPELINE_SECONDS:\\s*([\\d.]+)"
 weight = 0.5
 direction = "down"
