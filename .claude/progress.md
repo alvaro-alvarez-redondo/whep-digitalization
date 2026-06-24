@@ -100,5 +100,35 @@ Goal: highest-value, behavior-preserving speedups. Branch `autocode/jun22`.
   flag-resolution unit tests + a parallel-vs-sequential output-parity test that
   skips only if the environment cannot start multisession workers).
 
+## jun24 — performance loop (continuation of jun22). Branch `autocode/jun24`.
+
+Re-profiled the postpro stage on the 120k subset. Post-jun22 the hot path was the
+**clean stage's 4 rule-application passes**, dominated by `apply_footnote_rules` (~38%
+total) and `apply_conditional_rule_group` (~20%). Benchmark gate: `perf/autocode_bench.R`
+(120k subset, min of reps) + the 1007-test suite. Every change verified **byte-identical**
+to a golden capture via `perf/_verify.R` (exact, unsorted, column-by-column + ts-scrubbed
+diagnostics; the postpro stage is bit-deterministic run-to-run, confirmed).
+
+### Experiments (all byte-identical, tests 1007/0)
+- **exp-1 (keep):** vectorize the footnote *reconstruction* (step 7 of `apply_footnote_rules`).
+  Replaced the two per-(row_id,footnote_index)/per-row R closures with GForce
+  `any()`/first aggregations + a single/multi-token paste split (single-token rows skip
+  `paste`). exp-1+exp-2 combined: 21.83s -> 16.81s (-23%, back-to-back).
+- **exp-2 (keep):** `apply_conditional_rule_group` / target updates: restrict the
+  normalization-heavy target-condition match to source-matched rows; `anyDuplicated()==0`
+  instead of `uniqueN()==n` for the last-rule-wins fast-path check; defer candidate paste.
+  Neutral alone on the subset but safe and plausibly helps full data.
+- **exp-3 (keep):** the all-rows last-rule-wins collapse kept a **namespaced**
+  `data.table::uniqueN(update_value)` in its `by=` aggregation, which defeats GForce and
+  forces one R-level `uniqueN` call per row-id group (hundreds of thousands per pass, x4).
+  Dropped it (collapse is now last-value + `.N`, GForce); `uniqueN`/`paste` computed over the
+  multi-candidate subset only. **17.70s -> 11.41s vs exp-2 (-36%).**
+
+### In progress
+- Exhaustive candidate-search workflow (8 read-only finders across every postpro hot path
+  -> adversarial byte-identical vetting -> ranked synthesis) to find any remaining
+  behavior-preserving wins before declaring the engine near its optimum.
+
 ## Current state
-- 0 known failures across all 5 suites.
+- 0 known failures across all 5 suites. Branch `autocode/jun24`: postpro ~23% faster on the
+  120k subset vs `main` from exp-1+exp-2, then a further -36% from exp-3 (cumulative ~1.9x).
