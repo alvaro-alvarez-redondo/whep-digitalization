@@ -1,1 +1,4 @@
 /data
+# autocode jun24 scratch
+perf/_*.R
+/*.out
