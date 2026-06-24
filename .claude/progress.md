@@ -38,11 +38,15 @@ Goal: highest-value, behavior-preserving speedups. Branch `autocode/jun22`.
 
 ### Metric
 - `[metrics.tests]` (weight 0.5, correctness gate — must stay 975/0) +
-  `[metrics.performance]` (weight 0.5): `perf/autocode_bench.R` times
-  `run_postpro_pipeline_batch` on a 120k-row deterministic subset of the real
-  imported data (min of 2 reps). Lower is better. Import output cached under
-  gitignored `data/.autocode_bench/`.
+  `[metrics.performance]` (weight 0.5): `perf/autocode_bench.R` times the full
+  pipeline (general + import + postpro) on a 120k-row deterministic subset (min
+  of 2 reps). Lower is better. All stages are optimization targets — focus on
+  whichever has the most headroom. Set `WHEP_BENCH_CACHE_IMPORT=1` for focused
+  postpro iteration.
 - Baseline: tests 975/0; **postpro_s = 27.89** (subset). Run-to-run noise ~8%.
+- **NOTE (jun24 correction):** prior runs only measured postpro, biasing the
+  loop away from import (84s vs postpro 42s). The benchmark now measures total
+  pipeline time (`PIPELINE_SECONDS`).
 
 ### Experiments
 - **exp-1 (keep):** vectorize footnote long-format explosion in
@@ -64,13 +68,12 @@ Goal: highest-value, behavior-preserving speedups. Branch `autocode/jun22`.
   (explosion/join/reconstruction over all rows) is inherent to the rule
   semantics; reducing it further would be a risky reconstruction rewrite.
 
-### Out of scope (flagged, not done)
-- **Import (84s, the largest single cost)** is bounded by `readxl` (unzip +
-  parse + name-repair, all C code). Safe levers don't exist without a dependency
-  swap (forbidden) or enabling a parallel `future::plan()` by default — which
-  introduces global state and isn't exercised by the (sequential) test suite, so
-  it can't be validated under this loop. Left for an explicit, separately-tested
-  decision.
+### Previously out of scope (now included)
+- **Import (84s, the largest single cost)** was previously excluded from the
+  benchmark. The autocode loop now measures full pipeline time
+  (`PIPELINE_SECONDS`), so import is a valid optimization target. Import is
+  bounded by `readxl` (C code); the main lever is parallelism (opt-in
+  `whep.import.parallel_workers`, already implemented — see below).
 
 ### jun22 result
 - **Post-processing stage ~30% faster** on the full real dataset (357,076 rows):
@@ -148,7 +151,30 @@ diagnostics; the postpro stage is bit-deterministic run-to-run, confirmed).
   output **byte-identical** to `main` (exact, unsorted, column-by-column + ts-scrubbed
   diagnostics). Tests **1007/0** throughout. No dependency, contract, or determinism change.
 
+### Import stage (the pipeline's dominant cost — user-flagged)
+- Profiling reframed by Amdahl: postpro is only ~1/3 of pipeline wall-clock; **import
+  (readxl) dominates** (~120-140s sequential vs postpro ~20s). The postpro wins above are
+  real but invisible at the pipeline level until import is addressed. (The benchmark now
+  measures full-pipeline `PIPELINE_SECONDS`, so import is a first-class target.)
+- **exp-5 (keep): import parallelism ON by default.** The `future::multisession` machinery
+  already existed but the worker count defaulted to `1L` (off). Changed the constant default
+  to the `"auto"` sentinel; `run_import_pipeline()` now resolves workers via the new
+  `resolve_import_effective_workers()` → `min(4, cores - 1)` by default, engaging a parallel
+  plan only when there is >1 workbook batch and **falling back to sequential (warn) if
+  multisession workers can't spawn** (default-on never aborts). Any explicit override is
+  honored (`whep.import.parallel_workers` option or
+  `config$performance$import_parallel_workers`, incl. `1` = sequential).
+  `resolve_import_parallel_workers()` is unchanged (coerces `"auto"` → `1L`), so its
+  documented default-sequential contract and its 4 flag-resolution unit tests still hold.
+  Measured (16 cores): **import 142s -> 68s by default (2.10x)**, output **byte-identical**
+  to sequential (540,840 rows, all columns). Sheet scan: 1235 files, mean 1.63 sheets/file —
+  a second lever (per-sheet workbook re-opens in `read_file_sheets`) would need a different
+  Excel reader (`openxlsx2`/`tidyxl`), i.e. a dependency swap, so left out of scope.
+
 ## Current state
-- 0 known failures across all 5 suites. Branch `autocode/jun24`: postpro **~1.76x faster**
-  on the 120k subset vs `main` (exp-1 footnote-reconstruction vectorization + exp-2 rule
-  micro-opts + exp-3 GForce collapse restoration); full-dataset output byte-identical.
+- 0 known failures across all 5 suites (tests 1007/0). Branch `autocode/jun24` vs `main`,
+  all changes byte-identical: **import ~2.1x faster by default** (exp-5) and **postpro ~1.76x
+  faster** (exp-1/2/3) — together roughly halving full-pipeline wall-clock. Import
+  parallelism is safe-by-default (auto worker count, batch-count guard, sequential fallback,
+  explicit opt-out). exp-4 (conditional-group inner join) was measured and discarded as a
+  regression.
