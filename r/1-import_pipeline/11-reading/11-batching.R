@@ -132,16 +132,18 @@ resolve_import_effective_workers <- function(config) {
     raw_value
   )
 
+  auto_token <- constants$performance$import_parallel_workers_auto_token
   is_auto <- is.character(raw_value) &&
     length(raw_value) == 1L &&
-    identical(tolower(trimws(raw_value)), "auto")
+    identical(tolower(trimws(raw_value)), auto_token)
 
   if (!is_auto) {
-    # Explicit (or non-"auto") value: defer to the literal-count resolver, which
-    # honors integers and maps anything missing/invalid to 1L (sequential).
+    # Explicit (or non-sentinel) value: defer to the literal-count resolver,
+    # which honors integers and maps anything missing/invalid to 1L (sequential).
     return(resolve_import_parallel_workers(config))
   }
 
+  auto_max <- as.integer(constants$performance$import_parallel_workers_auto_max)
   detected_cores <- suppressWarnings(parallel::detectCores())
   if (
     length(detected_cores) != 1L ||
@@ -151,7 +153,7 @@ resolve_import_effective_workers <- function(config) {
     detected_cores <- 1L
   }
 
-  return(max(1L, min(4L, detected_cores - 1L)))
+  return(max(1L, min(auto_max, detected_cores - 1L)))
 }
 
 #' Read a batch of workbooks
