@@ -174,6 +174,7 @@ LOOP FOREVER:
 - **Simplicity wins.** Equal score, fewer lines → keep the simpler version.
 - **Don't chase noise.** For performance benchmarks especially, small variations may be measurement noise. Look for >5% improvements.
 - **Compound small wins.** A 2% improvement per experiment adds up over 50 experiments.
+- **Clean up scratch before committing.** Run logs (`run.log`, `*.out`) and one-off analysis/profiling/verification scripts are temporary — keep them gitignored and delete them before each commit so the working tree stays clean. Durable findings go in `.claude/progress.md` / `.claude/results.tsv` (not scratch logs). See the engineering standards in `CLAUDE.md` and `.claude/docs/conventions.md`.
 
 ## Timeout
 
