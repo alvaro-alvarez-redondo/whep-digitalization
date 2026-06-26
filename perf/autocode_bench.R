@@ -46,10 +46,16 @@ source(file.path(root, "run_pipeline.R"), echo = FALSE)
 source(file.path(root, "0-general_pipeline", "run_general_pipeline.R"), echo = FALSE)
 source(file.path(root, "1-import_pipeline", "run_import_pipeline.R"), echo = FALSE)
 source(file.path(root, "2-postpro_pipeline", "run_postpro_pipeline.R"), echo = FALSE)
+source(file.path(root, "3-export_pipeline", "run_export_pipeline.R"), echo = FALSE)
 
 cache_import <- identical(Sys.getenv("WHEP_BENCH_CACHE_IMPORT", "0"), "1")
+# Export is timed and included in PIPELINE_SECONDS by default (the full pipeline
+# is the optimization target). It writes to a gitignored bench dir so the real
+# data/3-export output is untouched. Set WHEP_BENCH_SKIP_EXPORT=1 to exclude it.
+skip_export <- identical(Sys.getenv("WHEP_BENCH_SKIP_EXPORT", "0"), "1")
 cache_dir <- here::here("data", ".autocode_bench")
 raw_path <- file.path(cache_dir, "raw_dt.rds")
+bench_export_dir <- file.path(cache_dir, "bench_export")
 
 reps <- suppressWarnings(as.integer(Sys.getenv("WHEP_BENCH_REPS", "2")))
 if (is.na(reps) || reps < 1L) reps <- 2L
@@ -60,9 +66,11 @@ if (is.na(reps) || reps < 1L) reps <- 2L
 general_elapsed <- numeric(reps)
 import_elapsed <- numeric(reps)
 postpro_elapsed <- numeric(reps)
+export_elapsed <- numeric(reps)
 pipeline_elapsed <- numeric(reps)
 postpro_rows <- NA_integer_
 import_cached <- FALSE
+export_included <- FALSE
 
 for (i in seq_len(reps)) {
   # --- General ---
@@ -105,9 +113,33 @@ for (i in seq_len(reps)) {
   postpro_elapsed[i] <- t_pp[["elapsed"]]
   postpro_rows <- nrow(out)
 
+  # --- Export ---
+  # Reconstruct the four layer tables postpro produces (raw is the subset fed to
+  # postpro; clean/normalize are carried as attributes of the harmonize output)
+  # and run the real export to a gitignored bench dir. Layer names end in the
+  # suffixes collect_layer_tables_for_export() detects.
+  if (!skip_export) {
+    layers_for_export <- list(
+      whep_data_raw = data.table::copy(raw_dt),
+      whep_data_clean = data.table::as.data.table(attr(out, "stage_clean")),
+      whep_data_normalize = data.table::as.data.table(attr(out, "stage_normalize")),
+      whep_data_harmonize = data.table::as.data.table(out)
+    )
+    config$paths$data$export$processed <- file.path(bench_export_dir, "processed_data")
+    config$paths$data$export$lists <- file.path(bench_export_dir, "lists")
+    t_exp <- system.time(run_export_pipeline(
+      config = config,
+      data_objects = layers_for_export,
+      overwrite = TRUE,
+      env = new.env()
+    ))
+    export_elapsed[i] <- t_exp[["elapsed"]]
+    export_included <- TRUE
+  }
+
   # --- Total ---
   pipeline_elapsed[i] <- general_elapsed[i] + import_elapsed[i] +
-    postpro_elapsed[i]
+    postpro_elapsed[i] + export_elapsed[i]
 }
 
 # ---------------------------------------------------------------------------
@@ -124,6 +156,11 @@ if (import_cached) {
   cat(sprintf("IMPORT_SECONDS: %.3f\n", min(import_elapsed)))
 }
 cat(sprintf("POSTPRO_SECONDS: %.3f\n", min(postpro_elapsed)))
+if (export_included) {
+  cat(sprintf("EXPORT_SECONDS: %.3f\n", min(export_elapsed)))
+} else {
+  cat("EXPORT_SECONDS: skipped\n")
+}
 cat(sprintf("POSTPRO_ROWS: %d\n", postpro_rows))
 cat(sprintf(
   "PIPELINE_ALL_REPS: %s\n",
