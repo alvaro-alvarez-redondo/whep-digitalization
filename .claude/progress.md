@@ -6,6 +6,9 @@
 - **Import (full, 729 workbooks):** ~38–40s at the new 8-worker default (was ~42s
   at 4 workers — interleaved A/B: −3.9%). Sequential is ~89s.
 - **Postpro (120k subset):** ~11.5s (full 357k ≈ 42s).
+- **Export:** ~0.5s on the 120k subset (~0.3–1.9s full; 10 small `unique_*.xlsx` +
+  one ~40MB harmonize TSV). Now timed and included in `PIPELINE_SECONDS`
+  (`EXPORT_SECONDS` diagnostic; bench writes to a gitignored dir).
 - **Last session:** jun26 (branch `autocode/jun26`)
 - **Measurement noise:** the official `PIPELINE_SECONDS` metric has a ~10% run-to-run
   floor (cold first rep + worker spawn + Nextcloud-FS contention; postpro alone swings
@@ -82,6 +85,18 @@ space was exhausted and documented under "Optimization boundaries" with fresh ev
 - **exp-2 (keep, hygiene/perf-neutral): postpro audit tree was created twice per run**
   (step 2 + step 3); step 2 now resolves paths only. Byte-identical, tests 1007/0.
   Isolated cost of the removed call ≈ 5ms (kept as redundant-work removal, not a perf win).
+- **exp-3 (keep): export builds the unique-value cache only for exported columns.**
+  It was computing `unique()+sort()` over the full column union — including the
+  high-cardinality `value` (and `year`) which are never written — across all four
+  layers. Isolated unique-cache build −46% (0.205s→0.110s). Byte-identical export
+  output (10 `unique_*.xlsx` + TSV read back from disk on the full 357k layers).
+  Export is ~1–3% of the pipeline, so the absolute saving is ~0.1s.
+- **Export brought into scope (metric change):** `autocode_bench.R` now times
+  `run_export_pipeline` on the postpro layers and includes it in `PIPELINE_SECONDS`
+  (+`EXPORT_SECONDS` diagnostic), writing to a gitignored bench dir. Profiling
+  confirmed export is small even on the Nextcloud FS (writes are tiny + one fast
+  `fwrite`), so there is little headroom — `value`/`year` cache skip was the only
+  clear waste. New gate `perf/_verify_export.R` reads written files back and compares.
 - **Ruled out with evidence:** batch-size tuning (sub-noise), >8 workers (regress),
   reader swap (breaks byte-identical), multi-pass pruning (dense column interdependence
   → no prunable set), rule-loading (cached in prod), convergence-serialize mutable-cols
