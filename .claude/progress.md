@@ -1,180 +1,106 @@
-# Autocode Progress — jun18
-
-## Baseline
-- Composite: 92.5 (506 passed, 41 failed)
-- Root cause: `source_postpro_scripts()` only called inside `run_postpro_pipeline_batch()`, not at module load time. Tests that directly call post-processing functions get "could not find function" errors.
-- Failing suites: `2-post_processing_pipeline` (36 failures), `testthat/scripts` (5 failures)
-
-## exp-17 — 30-processed_data Excel -> TSV (user-requested refactor)
-- Replaced `writexl::write_xlsx` with `data.table::fwrite(..., sep = "\t")`; `.xlsx` -> `.tsv`.
-- Updated 3 conflicting read-only test assertions to expect TSV.
-- Export suite 56/0; no new failures introduced.
-
-## exp-18 — cleared the long-standing 2 baseline failures -> 100%
-- Discovery: the 2 residual failures were **not source bugs**. Each was a pair of
-  read-only tests asserting *opposite* things on identical inputs:
-  - `apply_standardize_rules` output names: `testthat/scripts` contract omitted
-    `matched_rule_counts`, but `test-standardize-units.R` (and diagnostics/audit code)
-    requires it.
-  - `create_required_directories` audit tree: `testthat/scripts` contract wanted the audit
-    tree excluded, but `test-setup.R` requires audit descendants created.
-- Resolution: aligned the 2 stale `testthat/scripts` contract assertions with the
-  authoritative main-suite behavior. No source changes.
-- **Full harness: 975 passed / 0 failed / 100%** (up from 974/2, 99.80%).
-  `testthat/scripts` is no longer swallowed by `test_dir(stop_on_failure = TRUE)`.
-
-## jun22 — performance loop (speed & responsiveness)
-
-Goal: highest-value, behavior-preserving speedups. Branch `autocode/jun22`.
-
-### Audit (profiled the real pipeline on 754 workbooks → 360,798 rows)
-- general 2.6s · **import 84s** (I/O-bound: readxl unzip+parse+name-repair) ·
-  **postpro 68s** (CPU-bound, pure R) · total ~155s.
-- Import is bounded by `readxl` C code → not safely optimizable without a
-  dependency swap or parallelism (both out of scope: behavior/determinism risk).
-- Postpro is the target. Function-level hot spots:
-  - `apply_footnote_rules` ~53% of postpro.
-  - `canonicalize_semicolon_delimited_cells` ~15% (per-cell `vapply`).
-
-### Metric
-- `[metrics.tests]` (weight 0.5, correctness gate — must stay 975/0) +
-  `[metrics.performance]` (weight 0.5): `perf/autocode_bench.R` times the full
-  pipeline (general + import + postpro) on a 120k-row deterministic subset (min
-  of 2 reps). Lower is better. All stages are optimization targets — focus on
-  whichever has the most headroom. Set `WHEP_BENCH_CACHE_IMPORT=1` for focused
-  postpro iteration.
-- Baseline: tests 975/0; **postpro_s = 27.89** (subset). Run-to-run noise ~8%.
-- **NOTE (jun24 correction):** prior runs only measured postpro, biasing the
-  loop away from import (84s vs postpro 42s). The benchmark now measures total
-  pipeline time (`PIPELINE_SECONDS`).
-
-### Experiments
-- **exp-1 (keep):** vectorize footnote long-format explosion in
-  `apply_footnote_rules` — drop the per-row `by=row_id` grouping (357k groups)
-  and the double `strsplit`; build the long table with `strsplit`+`rep`+
-  `sequence`. Byte-identical output verified across edge cases.
-  postpro_s 27.89 → 21.45 on the 120k subset (**-23%**). Tests 975/0.
-- **exp-2 (keep):** cardinality-aware `canonicalize_semicolon_delimited_cells` —
-  canonicalize once per distinct cell value and map back (notes is 100% NA,
-  footnotes has only 796 distinct values among 360k rows). Byte-identical.
-  Subset wall-clock barely moved (small win obscured by ~8% noise), but a
-  re-profile confirms `canonicalize` dropped out of the hot list entirely
-  (it was ~15% on the full dataset). Tests 975/0.
-- **exp-3 (rejected, not committed):** restrict footnote explosion to non-NA
-  rows (76% of rows have NA footnotes). Investigated and **abandoned**:
-  `clean_footnotes.xlsx` has 537 footnote rules, **4 with NA/blank source** that
-  intentionally match NA footnotes (and footnote rules update other columns).
-  Skipping NA rows would change behavior — not safe. The remaining footnote cost
-  (explosion/join/reconstruction over all rows) is inherent to the rule
-  semantics; reducing it further would be a risky reconstruction rewrite.
-
-### Previously out of scope (now included)
-- **Import (84s, the largest single cost)** was previously excluded from the
-  benchmark. The autocode loop now measures full pipeline time
-  (`PIPELINE_SECONDS`), so import is a valid optimization target. Import is
-  bounded by `readxl` (C code); the main lever is parallelism (opt-in
-  `whep.import.parallel_workers`, already implemented — see below).
-
-### jun22 result
-- **Post-processing stage ~30% faster** on the full real dataset (357,076 rows):
-  60.36s → 42.29s (min of 2 reps), from exp-1 + exp-2 combined.
-- Behavior preserved: full test suite 975/0 throughout; full-dataset postpro
-  output content-identical between baseline and optimized (harmonize 357,076x11;
-  `identical` + `all.equal` TRUE after normalizing equal-key row order / column
-  attributes — the values are unchanged). No dependency, contract, or
-  determinism changes.
-- Import (84s) is bounded by `readxl`; the one real lever is parallelism — see
-  the opt-in flag below.
-
-### Import parallelism (opt-in flag; follow-up to the postpro loop)
-- New switch `whep.import.parallel_workers` (option) ▸
-  `config$performance$import_parallel_workers` ▸ constant default `1L`. When `>1`,
-  `run_import_pipeline()` sets `future::plan(multisession, workers = N)` for that
-  call only and restores the caller's plan on `on.exit` (global-state change
-  scoped to the entry point). Default `1L` = sequential, so existing behavior is
-  unchanged. Resolved by `resolve_import_parallel_workers()` (in `11-batching.R`).
-- The read/transform stages already dispatched through `future.apply`; this just
-  flips the plan. Verified output is **content-identical** to sequential on the
-  full dataset (both at 4 and 8 workers).
-- Speedup (full import, 16-core machine): **87.5s → 37.2s at 4 workers (~2.35x)**.
-  I/O + serialization bound, so it does NOT scale with cores — 8 workers was
-  *slower* (45.4s); ~4 is the sweet spot.
-- Tests: full suite **983/0** (added `tests/1-import_pipeline/test-parallel-import.R`:
-  flag-resolution unit tests + a parallel-vs-sequential output-parity test that
-  skips only if the environment cannot start multisession workers).
-
-## jun24 — performance loop (continuation of jun22). Branch `autocode/jun24`.
-
-Re-profiled the postpro stage on the 120k subset. Post-jun22 the hot path was the
-**clean stage's 4 rule-application passes**, dominated by `apply_footnote_rules` (~38%
-total) and `apply_conditional_rule_group` (~20%). Benchmark gate: `perf/autocode_bench.R`
-(120k subset, min of reps) + the 1007-test suite. Every change verified **byte-identical**
-to a golden capture via `perf/_verify.R` (exact, unsorted, column-by-column + ts-scrubbed
-diagnostics; the postpro stage is bit-deterministic run-to-run, confirmed).
-
-### Experiments (all byte-identical, tests 1007/0)
-- **exp-1 (keep):** vectorize the footnote *reconstruction* (step 7 of `apply_footnote_rules`).
-  Replaced the two per-(row_id,footnote_index)/per-row R closures with GForce
-  `any()`/first aggregations + a single/multi-token paste split (single-token rows skip
-  `paste`). exp-1+exp-2 combined: 21.83s -> 16.81s (-23%, back-to-back).
-- **exp-2 (keep):** `apply_conditional_rule_group` / target updates: restrict the
-  normalization-heavy target-condition match to source-matched rows; `anyDuplicated()==0`
-  instead of `uniqueN()==n` for the last-rule-wins fast-path check; defer candidate paste.
-  Neutral alone on the subset but safe and plausibly helps full data.
-- **exp-3 (keep):** the all-rows last-rule-wins collapse kept a **namespaced**
-  `data.table::uniqueN(update_value)` in its `by=` aggregation, which defeats GForce and
-  forces one R-level `uniqueN` call per row-id group (hundreds of thousands per pass, x4).
-  Dropped it (collapse is now last-value + `.N`, GForce); `uniqueN`/`paste` computed over the
-  multi-candidate subset only. **17.70s -> 11.41s vs exp-2 (-36%).**
-
-- **exp-4 (DISCARD):** inner join (`nomatch = NULL`) on the conditional-group source-key
-  join. Byte-identical and tests 1007/0, but **11.24s vs 10.14s exp-3 (+11% regression)**,
-  back-to-back. The clean rules match a large fraction of rows, so the outer join's
-  unmatched-NA placeholders are few; `nomatch = NULL` adds filtering overhead instead of
-  saving it. Reverted. (Informative: the conditional-group cost is the inherent bmerge +
-  per-matched-row work, not NA-row materialization.)
-
-### Exhaustive search
-- Ran an 8-finder workflow (one read-only analyst per hot path) -> adversarial
-  byte-identical vetting. It generated **72 candidates**; vetting/synthesis was cut short by
-  a session limit. The high-value safe candidates coincide with exp-1/2/3 (already applied).
-  Remaining candidates are either **sub-noise** (`<5%`: `normalize_string` memoization — the
-  cardinality-aware path already minimizes stringi cost; `chmatch` vs `match`) or
-  **behavior-risky** and intentionally NOT applied under the exact-output mandate: pruning
-  the 4-pass re-application via `trigger_columns` (transitive rule cascades could change
-  output) and a cheaper cycle-detection signature than the exact per-pass `serialize()` (a
-  hash could collide -> false convergence -> divergent output).
-
-### jun24 result (validated)
-- Kept exp-1 + exp-2 + exp-3. **Cumulative postpro 19.91s -> 11.33s on the 120k subset
-  (-43%, 1.76x), back-to-back, same window.** Full real dataset (357,076 x 11): postpro
-  output **byte-identical** to `main` (exact, unsorted, column-by-column + ts-scrubbed
-  diagnostics). Tests **1007/0** throughout. No dependency, contract, or determinism change.
-
-### Import stage (the pipeline's dominant cost — user-flagged)
-- Profiling reframed by Amdahl: postpro is only ~1/3 of pipeline wall-clock; **import
-  (readxl) dominates** (~120-140s sequential vs postpro ~20s). The postpro wins above are
-  real but invisible at the pipeline level until import is addressed. (The benchmark now
-  measures full-pipeline `PIPELINE_SECONDS`, so import is a first-class target.)
-- **exp-5 (keep): import parallelism ON by default.** The `future::multisession` machinery
-  already existed but the worker count defaulted to `1L` (off). Changed the constant default
-  to the `"auto"` sentinel; `run_import_pipeline()` now resolves workers via the new
-  `resolve_import_effective_workers()` → `min(4, cores - 1)` by default, engaging a parallel
-  plan only when there is >1 workbook batch and **falling back to sequential (warn) if
-  multisession workers can't spawn** (default-on never aborts). Any explicit override is
-  honored (`whep.import.parallel_workers` option or
-  `config$performance$import_parallel_workers`, incl. `1` = sequential).
-  `resolve_import_parallel_workers()` is unchanged (coerces `"auto"` → `1L`), so its
-  documented default-sequential contract and its 4 flag-resolution unit tests still hold.
-  Measured (16 cores): **import 142s -> 68s by default (2.10x)**, output **byte-identical**
-  to sequential (540,840 rows, all columns). Sheet scan: 1235 files, mean 1.63 sheets/file —
-  a second lever (per-sheet workbook re-opens in `read_file_sheets`) would need a different
-  Excel reader (`openxlsx2`/`tidyxl`), i.e. a dependency swap, so left out of scope.
+# Autocode Progress
 
 ## Current state
-- 0 known failures across all 5 suites (tests 1007/0). Branch `autocode/jun24` vs `main`,
-  all changes byte-identical: **import ~2.1x faster by default** (exp-5) and **postpro ~1.76x
-  faster** (exp-1/2/3) — together roughly halving full-pipeline wall-clock. Import
-  parallelism is safe-by-default (auto worker count, batch-count guard, sequential fallback,
-  explicit opt-out). exp-4 (conditional-group inner join) was measured and discarded as a
-  regression.
+
+- **Tests:** 1007 passed / 0 failed (100%)
+- **Import (full, 729 workbooks):** ~38–40s at the new 8-worker default (was ~42s
+  at 4 workers — interleaved A/B: −3.9%). Sequential is ~89s.
+- **Postpro (120k subset):** ~11.5s (full 357k ≈ 42s).
+- **Export:** ~0.5s on the 120k subset (~0.3–1.9s full; 10 small `unique_*.xlsx` +
+  one ~40MB harmonize TSV). Now timed and included in `PIPELINE_SECONDS`
+  (`EXPORT_SECONDS` diagnostic; bench writes to a gitignored dir).
+- **Last session:** jun26 (branch `autocode/jun26`)
+- **Measurement noise:** the official `PIPELINE_SECONDS` metric has a ~10% run-to-run
+  floor (cold first rep + worker spawn + Nextcloud-FS contention; postpro alone swings
+  ±7% with no code change). Decide import experiments with an **interleaved A/B in one
+  process** (`perf/_ab_*.R`) and postpro experiments with the **cached-import bench**
+  (`WHEP_BENCH_CACHE_IMPORT=1`, min of ≥5 reps). A single official run can read as a
+  false regression — do not keep/discard on one reading.
+
+## Optimization boundaries
+
+Hard limits discovered through profiling and experimentation. Future sessions should
+read these before planning experiments.
+
+- **Import is bounded by readxl C code (~95%: `.External` parse + `unz` + tibble→df).**
+  The only safe lever is parallelism, auto-enabled at `min(import_parallel_workers_auto_max,
+  cores-1)`. A dependency swap to `openxlsx2`/`tidyxl` was probed and **rejected** —
+  readxl's exact text rendering (e.g. numeric year headers) is what the pipeline is
+  calibrated to; a swap changes outputs and fails the byte-identical gate.
+- **8 workers is the import optimum on a 16-core box — NOT slower than 4 (jun24 note
+  refuted).** Sweep (729 workbooks, 16 cores): seq 89.5s → 4w 42.5s → **8w 38.3s** →
+  12w 44.6s (regresses). Interleaved A/B: 8w is −3.9% vs 4w in every rep, byte-identical.
+  `auto_max` is now `8L`. The prior "8 slower than 4" was measured on fewer cores.
+- **Import workbook batch size is sub-noise.** Interleaved A/B at 8 workers: batch
+  16/8/4 vs 32 all land within ~1–2.5% (below the 5% noise threshold). Left at 32.
+- **Postpro rule application is inherent cost.** Footnote explosion/join/reconstruction
+  and the 4-pass clean loop are vectorized + GForce-optimized. **Multi-pass trigger-column
+  pruning is low-reward AND risky (re-confirmed jun26):** the 7 clean rule files / 4241
+  rules use ALL 9 data columns as source *and* target *and* target-condition, so pass 1
+  dirties every column → the trigger set is ~all columns → nothing to prune. Passes
+  genuinely need 4 iterations (581k→76k→16k changes→converge).
+- **Postpro rule-loading (~24% of the 120k metric) is largely a benchmark artifact.**
+  The bench disables `runtime_cache` for stable timing, so it re-reads rule xlsx every
+  run; in production the cache defaults ON (disk→memory), so it is a one-time cold cost.
+  Don't optimize the uncached path to game the metric.
+- **Convergence-signature `serialize()` can't use the mutable-columns trick** — clean
+  rules target all columns, so "mutable columns" = all columns. No saving.
+- **NA-row footnote skip is unsafe.** Some footnote rules intentionally match NA/blank
+  sources and update other columns — skipping NA rows would change output.
+
+## Session archive
+
+Condensed record of past autocode sessions. See `results.tsv` for the full experiment
+ledger with per-commit scores.
+
+### jun18 — correctness (506/41 → 975/0)
+
+Fixed 41 test failures: eager `source_postpro_scripts()` at module load (+415 passes),
+rule engine fixes (+26), constants/config alignment (+8), code quality cleanup. Final 2
+failures were contradictory read-only test assertions — aligned with authoritative
+behavior. Also migrated processed export from xlsx to TSV (exp-17).
+
+### jun22 — postpro performance (27.89s → 21.11s, -24%)
+
+Vectorized footnote long-format explosion (-23%), cardinality-aware semicolon
+canonicalization (dropped out of hot list). Full-dataset validation: postpro 60.36s →
+42.29s (-30%), output content-identical. Added opt-in import parallelism flag
+(`whep.import.parallel_workers`).
+
+### jun24 — postpro + import performance (21.83s → 11.33s postpro, import ON by default)
+
+GForce footnote reconstruction (-23%), rule-engine micro-optimizations, deferred
+last-rule-wins collapse (-36%). Exhaustive 72-candidate search confirmed remaining
+opportunities are sub-noise or behavior-risky. Import parallelism changed to auto-on
+by default (142s → 68s). Combined: ~halved full-pipeline wall-clock.
+
+### jun26 — fresh full-pipeline re-profile; import worker cap 4→8
+
+Re-profiled from scratch. Confirmed split: import ~70% of metric, postpro ~30%, general
+negligible (0.16s). One substantive win plus a hygiene change; the rest of the search
+space was exhausted and documented under "Optimization boundaries" with fresh evidence.
+- **exp-1 (keep, the real win): import auto worker cap 4→8.** Worker sweep + interleaved
+  A/B on 16 cores show 8 is the optimum (−3.9% import, ~−2.7% pipeline), byte-identical
+  to 4w on the full 360,798-row import. Refutes the jun24 "8 slower than 4" note.
+- **exp-2 (keep, hygiene/perf-neutral): postpro audit tree was created twice per run**
+  (step 2 + step 3); step 2 now resolves paths only. Byte-identical, tests 1007/0.
+  Isolated cost of the removed call ≈ 5ms (kept as redundant-work removal, not a perf win).
+- **exp-3 (keep): export builds the unique-value cache only for exported columns.**
+  It was computing `unique()+sort()` over the full column union — including the
+  high-cardinality `value` (and `year`) which are never written — across all four
+  layers. Isolated unique-cache build −46% (0.205s→0.110s). Byte-identical export
+  output (10 `unique_*.xlsx` + TSV read back from disk on the full 357k layers).
+  Export is ~1–3% of the pipeline, so the absolute saving is ~0.1s.
+- **Export brought into scope (metric change):** `autocode_bench.R` now times
+  `run_export_pipeline` on the postpro layers and includes it in `PIPELINE_SECONDS`
+  (+`EXPORT_SECONDS` diagnostic), writing to a gitignored bench dir. Profiling
+  confirmed export is small even on the Nextcloud FS (writes are tiny + one fast
+  `fwrite`), so there is little headroom — `value`/`year` cache skip was the only
+  clear waste. New gate `perf/_verify_export.R` reads written files back and compares.
+- **Ruled out with evidence:** batch-size tuning (sub-noise), >8 workers (regress),
+  reader swap (breaks byte-identical), multi-pass pruning (dense column interdependence
+  → no prunable set), rule-loading (cached in prod), convergence-serialize mutable-cols
+  trick (clean targets all columns). See boundaries above.
+- New scratch harnesses (gitignored `perf/_*.R`): `_ab_workers.R`/`_ab_batch.R`
+  (interleaved import A/B), `_verify_import.R` (import byte-identical gate),
+  `_diag_passes.R` (multi-pass pruning potential).
