@@ -71,13 +71,15 @@ get_pipeline_constants <- function() {
       # output is identical to sequential. An explicit integer override (the
       # whep.import.parallel_workers option or
       # config$performance$import_parallel_workers) is always honored, with 1L =
-      # sequential. Import is I/O + serialization bound, so returns diminish past
-      # ~4 workers (8 was slower than 4 in benchmarks). The literal-count resolver
-      # resolve_import_parallel_workers() treats the sentinel as 1L (sequential),
-      # so its documented default-sequential contract is preserved.
+      # sequential. Import is partly serialization/IO bound, so returns taper off:
+      # a worker-count sweep (729 workbooks, 16 cores) measured seq 89.5s ->
+      # 4w 42.5s -> 8w 38.3s (best) -> 12w 44.6s (regresses). 8 is the optimum;
+      # output is byte-identical to sequential at every worker count. The
+      # literal-count resolver resolve_import_parallel_workers() treats the
+      # sentinel as 1L (sequential), so its default-sequential contract holds.
       import_parallel_workers = "auto",
       import_parallel_workers_auto_token = "auto",
-      import_parallel_workers_auto_max = 4L
+      import_parallel_workers_auto_max = 8L
     ),
     defaults = list(
       unknown_document = "(unknown_document)",
