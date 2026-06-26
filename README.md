@@ -11,9 +11,9 @@ This repository is a script-oriented R pipeline that processes WHEP source workb
 1. General bootstrap (dependency checks, configuration construction, directory preparation)
 2. Import (file discovery, read, transformation, validation)
 3. Post-processing (audit, cleaning, unit standardization, harmonization)
-4. Export (processed layer workbooks and unique-list outputs)
+4. Export (processed TSV files and unique-list outputs)
 
-Execution is orchestrated by `R/run_pipeline.R`, which sources stage runners in fixed order.
+Execution is orchestrated by `r/run_pipeline.R`, which sources stage runners in fixed order.
 
 ## 3. Installation (renv enforced)
 
@@ -29,8 +29,9 @@ install.packages("renv")
 renv::init(bare = TRUE)
 renv::install(c(
   "checkmate", "cli", "data.table", "dplyr", "fs", "future", "future.apply",
-  "here", "openxlsx", "progressr", "purrr", "readr", "readxl", "stringi",
-  "stringr", "testthat", "withr"
+  "here", "openxlsx", "profvis", "progressr", "purrr", "readr", "readxl",
+  "renv", "stringi", "stringr", "testthat", "tibble", "tidyr", "tidyselect",
+  "writexl"
 ))
 renv::snapshot()
 ```
@@ -64,7 +65,7 @@ run_pipeline(
 
 ## 6. Exported API Overview
 
-Primary API exposed via `R/run_pipeline.R`:
+Primary API exposed via `r/run_pipeline.R`:
 
 - `run_pipeline(show_view = interactive(), pipeline_root = here::here("r"))`
 
@@ -72,7 +73,7 @@ Core stage entry points used by the orchestrator:
 
 - `run_general_pipeline(dataset_name = get_pipeline_constants()$dataset_default_name)`
 - `run_import_pipeline(config)`
-- `run_postpro_pipeline_batch(raw_dt, config, dataset_name, unit_column, value_column, commodity_column)`
+- `run_postpro_pipeline_batch(raw_dt, config, dataset_name = get_pipeline_constants()$dataset_default_name)`
 - `run_export_pipeline(config, data_objects = NULL, overwrite = TRUE, env = .GlobalEnv)`
 
 Auto-run wrappers:
@@ -116,19 +117,25 @@ The pipeline includes several performance optimizations for large-scale processi
 
 ### Parallel Processing
 
-File reading, transformation, and list export leverage `future.apply::future_lapply()` for parallel execution when a `future` backend is configured. By default, the pipeline runs sequentially (`future::sequential`).
+The pipeline uses `future.apply::future_lapply()` for parallel execution. Each stage handles parallelism differently:
 
-Enable parallel processing:
+- **Import**: has a built-in opt-in parallel mode controlled by the `whep.import.parallel_workers` option (default constant: `"auto"`). When set to `"auto"`, the import stage auto-enables parallel reading at `min(4, available_cores - 1)` workers via `future::multisession`. An explicit integer disables auto-detection (`1L` = sequential). No manual `future::plan()` call is needed for import.
+- **Transform** and **List Export**: require a manual `future::plan()` to run in parallel. Without one, they execute sequentially.
+
+Enable parallel processing for transform and list export:
 
 ```r
 future::plan(future::multisession, workers = 4)
 source(here::here("r", "run_pipeline.R"), local = TRUE)
 ```
 
-When parallel backends are active, these stages run in parallel:
-- **Import**: `read_pipeline_files()` reads Excel files concurrently
-- **Transform**: `process_files()` transforms file data concurrently
-- **Export**: `export_lists()` writes column workbooks concurrently
+Override import parallelism explicitly:
+
+```r
+options(whep.import.parallel_workers = 2L)   # fixed 2 workers
+options(whep.import.parallel_workers = 1L)   # force sequential
+options(whep.import.parallel_workers = "auto") # auto (default)
+```
 
 ### Checkpointing
 
@@ -165,13 +172,17 @@ When enabled:
 Run all tests:
 
 ```r
-source(here::here("tests", "testthat", "test_all.r"), echo = FALSE)
-```
-
-Run test directory directly:
-
-```r
-testthat::test_dir(here::here("tests", "testthat", "r"), reporter = "summary")
+source(here::here("tests", "test_helper.R"), echo = FALSE)
+dirs <- c(
+  here::here("tests", "0-general_pipeline"),
+  here::here("tests", "1-import_pipeline"),
+  here::here("tests", "2-post_processing_pipeline"),
+  here::here("tests", "3-export_pipeline"),
+  here::here("tests", "testthat", "scripts")
+)
+for (d in dirs) {
+  if (dir.exists(d)) testthat::test_dir(d, reporter = "summary")
+}
 ```
 
 Coverage notes:

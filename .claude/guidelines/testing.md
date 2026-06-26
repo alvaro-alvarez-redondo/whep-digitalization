@@ -5,26 +5,9 @@ description: Generate or refactor testthat tests for modified or exported R func
 
 # Testing
 
-Use this when adding or updating tests. Every behavior or contract change ships with
-tests. Suite locations and the enforced contracts are in
-[../docs/architecture.md](../docs/architecture.md).
+Every behavior/contract change ships with tests. Use `testthat`. Required types: happy
+path, edge case, error case, legacy-elimination. Deterministic: no network/filesystem
+side effects; seed randomness.
 
-## Required test types
-
-- Happy path
-- Edge case
-- Error case
-- Legacy-elimination — assert that removed backward-compatibility behavior is gone
-
-## Constraints
-
-- Use `testthat`.
-- Deterministic execution: no network or filesystem side effects; seeded randomness only.
-
-## Implementation
-
-- Create or update test files directly; aim for coverage completeness.
-- Run the full suite before committing:
-  `source(here::here("tests", "testthat", "test_all.R"), echo = FALSE)`.
-- Never accept a change that lowers the test pass rate.
-- Commit changes.
+Run the full suite via `autocode.toml` `[metrics.tests]`. Do **not** use
+`tests/testthat/test_all.R` (broken). Never accept a change that lowers pass rate.

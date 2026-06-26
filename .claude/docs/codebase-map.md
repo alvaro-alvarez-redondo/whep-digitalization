@@ -8,7 +8,7 @@ For the architecture and data flow, see [architecture.md](architecture.md). For 
 constants and option flags these functions read, see
 [constants-and-options.md](constants-and-options.md).
 
-> 67 `.R` files, ~12.4k lines. This index lists durable function names and
+> 62 source `.R` files + 34 test files. This index lists durable function names and
 > responsibilities; it intentionally omits line numbers (they rot). Re-derive a stale
 > entry by reading the named file.
 
@@ -37,7 +37,7 @@ constants and option flags these functions read, see
 |---|---|---|---|
 | `assert_or_abort(check_result)` | `02-assertions.R` | Pass `TRUE`, abort on error string — used by every helper | int |
 | `save/load/clear_pipeline_checkpoint(...)` | `02-checkpoints.R` | RDS checkpointing (gated by `whep.checkpointing.enabled`) | PUB |
-| `get_config_string` / `generate_export_path(config, base, type, ...)` | `02-config-accessors.R` | Nested config access; build export paths | PUB/int |
+| `get_config_string` / `generate_export_path(config, base, type, ...)` | `02-config-accessors.R` | Nested config access; build export paths. `generate_export_path` is dead code (superseded by `build_processed_export_path()`; remove) | PUB/dead |
 | `drop_na_value_rows(dt, value_column)` | `02-data-cleaning.R` | Drop NA-value rows (gated by `whep.drop_na_values`) | PUB |
 | `ensure_data_table` / `copy_as_data_table` / `coerce_to_data_table` | `02-data-table.R` | data.frame ↔ data.table coercion | int |
 | `assign_environment_values(values, env)` | `02-environment.R` | Deterministic named assignment into an env | int |

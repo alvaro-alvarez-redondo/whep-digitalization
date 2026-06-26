@@ -1,15 +1,5 @@
 # Architecture
 
-The mental model of the pipeline. **Read this first**, before editing any pipeline code.
-It is the hub for the deeper reference docs:
-
-- [codebase-map.md](codebase-map.md) — every file and function, by stage (the "where does X live" index — use it instead of grepping).
-- [constants-and-options.md](constants-and-options.md) — the full `get_pipeline_constants()` surface and all `whep.*` option flags.
-- [conventions.md](conventions.md) — how to run & test, load order, determinism, parallelism, and gotchas.
-- [common-changes.md](common-changes.md) — touch-point recipes for the most frequent edits (add a column, a rule, a constant, an export, a test).
-
-Coding standards live in [../../CLAUDE.md](../../CLAUDE.md); task playbooks in [../guidelines/](../guidelines/).
-
 ## Overview
 
 A deterministic, script-oriented R pipeline. `r/run_pipeline.R` orchestrates four stages
@@ -39,10 +29,9 @@ Stage 0 sub-structure (the parts most code touches):
 
 ## Data flow
 
-Each stage hands a `data.table` (plus diagnostics) to the next. Stage objects are also
-assigned in the environment under canonical names (`whep_data_raw`, `whep_data_clean`,
-`whep_data_normalize`, `whep_data_harmonize`) — see `object_names` in
-[constants-and-options.md](constants-and-options.md).
+Each stage hands a `data.table` (plus diagnostics) to the next. Stage objects are assigned
+in the environment under canonical names (`whep_data_raw`, `whep_data_clean`,
+`whep_data_normalize`, `whep_data_harmonize`).
 
 ```
 Excel workbooks (data/1-import/10-raw_import/**.xlsx)
@@ -59,35 +48,23 @@ EXPORT result: list(processed_paths, lists_paths)
 
 ### Canonical column order
 
-The business key order, enforced by `sort_pipeline_stage_dt()` and the import consolidation
-step (`constants$sorting$stage_row_order`):
-
 ```
 hemisphere, continent, polity, commodity, variable, unit, year, value,
 notes, footnotes, yearbook, document
 ```
 
-All pipeline data is **character-typed** end to end (Excel is read with `col_types =
-"text"`; `year` and `value` stay strings). Rows with `value = NA` are dropped by default
-(`whep.drop_na_values`).
+All pipeline data is **character-typed** end to end. Rows with `value = NA` are dropped by
+default (`whep.drop_na_values`).
 
-## Entry points (public API)
+## Entry points
 
-Defined via `r/run_pipeline.R`:
-
-- `run_pipeline(show_view = interactive(), pipeline_root = here::here("r"))` — top-level orchestrator.
-
-Stage entry points (note the **verified** signatures):
-
-- `run_general_pipeline(dataset_name = get_pipeline_constants()$dataset_default_name)` → returns `config`.
+- `run_pipeline(show_view, pipeline_root)` — top-level orchestrator.
+- `run_general_pipeline(dataset_name)` → returns `config`.
 - `run_import_pipeline(config)` → `list(data, wide_raw, diagnostics)`.
-- `run_postpro_pipeline_batch(raw_dt, config, dataset_name = ...)` → harmonized `data.table` with `pipeline_diagnostics` attribute. **Three args** — the unit/value/commodity column names are parameters of the standardize-units *layer* (`run_standardize_units_layer_batch`), not of the batch orchestrator. (The repo `README.md` currently lists a stale 6-arg signature.)
-- `run_export_pipeline(config, data_objects = NULL, overwrite = TRUE, env = .GlobalEnv)` → `list(processed_paths, lists_paths)`.
+- `run_postpro_pipeline_batch(raw_dt, config, dataset_name)` → harmonized `data.table` with `pipeline_diagnostics` attribute. **Three args** — unit/value/commodity column names are parameters of `run_standardize_units_layer_batch`, not the batch orchestrator.
+- `run_export_pipeline(config, data_objects, overwrite, env)` → `list(processed_paths, lists_paths)`.
 
-Auto-run wrappers (`run_import_pipeline_auto()`, etc.) fire when the matching
-`whep.run_*_pipeline.auto` option is `TRUE` (default). Sourcing a stage file runs that
-stage unless the option is disabled — tests disable all of them. See
-[conventions.md](conventions.md).
+Auto-run wrappers fire when `whep.run_*_pipeline.auto` is `TRUE` (default). Tests disable them.
 
 ## Contracts — do not break without updating tests
 
@@ -95,12 +72,9 @@ stage unless the option is disabled — tests disable all of them. See
 |----------|-------------|-----------|
 | Import transform shape | `assert_transform_result_contract()` | result is `list(wide_raw, long_raw)`, both `data.table` |
 | Export paths shape | `assert_export_paths_contract()` | `list(processed_paths, lists_paths)`, both non-empty named char vectors |
-| Standardize output | `test-standardize-units.R` + `scripts/test_assignment_and_standardization_contracts.R` | `apply_standardize_rules()` returns `list(data, matched_count, unmatched_count, matched_rule_counts)` where **`matched_rule_counts` is a `data.table`** (not a vector) — required by diagnostics and audit |
-| Audit subtree | `test-setup.R` + `scripts/test_setup_directory_creation_contracts.R` | `create_required_directories()` **creates the audit subtree** (`audit/`, `diagnostics/`, `templates/`, `runtime_cache/`) |
-| Export layer detection | `test-export-data.R` | `collect_layer_tables_for_export()` detects `_raw/_clean/_normalize/_harmonize`, excludes `_wide_raw`/`_post_processed`; only the `harmonize` layer is exported by default |
-
-The two middle contracts were the source of long-standing contradictory test assertions;
-the authoritative behavior is the one stated here (see [`progress.md`](../progress.md), exp-18).
+| Standardize output | `test-standardize-units.R` + `scripts/test_assignment_and_standardization_contracts.R` | `apply_standardize_rules()` returns `list(data, matched_count, unmatched_count, matched_rule_counts)` where `matched_rule_counts` is a `data.table` |
+| Audit subtree | `test-setup.R` + `scripts/test_setup_directory_creation_contracts.R` | `create_required_directories()` creates audit subtree (`audit/`, `diagnostics/`, `templates/`, `runtime_cache/`) |
+| Export layer detection | `test-export-data.R` | `collect_layer_tables_for_export()` detects `_raw/_clean/_normalize/_harmonize`, excludes `_wide_raw`/`_post_processed`; only `harmonize` exported by default |
 
 ## Data layout (gitignored, under `data/`)
 

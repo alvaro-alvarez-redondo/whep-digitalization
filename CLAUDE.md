@@ -1,82 +1,60 @@
 # CLAUDE.md
 
-Project memory for the **WHEP Digitalization Pipeline** — a script-oriented R pipeline
-that processes WHEP source workbooks through deterministic stages (general bootstrap →
-import → post-processing → export). This file is loaded automatically into every Claude
-session. Read it before editing.
-
-## Before you edit
-
-Prefer reading these docs over rescanning the codebase — they are kept current on purpose:
-
-1. [.claude/docs/architecture.md](.claude/docs/architecture.md) — **start here**: stage
-   layout, data flow, entry points, and the contracts you must not break.
-2. [.claude/docs/codebase-map.md](.claude/docs/codebase-map.md) — every file and function,
-   by stage. Use it as a lookup index instead of grepping.
-3. [.claude/docs/constants-and-options.md](.claude/docs/constants-and-options.md) — the
-   full `get_pipeline_constants()` surface and all `whep.*` option flags.
-4. [.claude/docs/conventions.md](.claude/docs/conventions.md) — how to run & test, load
-   order, determinism, parallelism, and gotchas.
-5. [.claude/docs/common-changes.md](.claude/docs/common-changes.md) — touch-point recipes
-   for frequent edits (add a column, rule, constant, export, or test). Check here first
-   when making a typical change.
-
-For a specific kind of task, also read the matching playbook in
-[.claude/guidelines/](.claude/guidelines/) (refactoring, performance, testing, constants,
-readme-generation). The full map of this layer is in [.claude/README.md](.claude/README.md).
-
-## Engineering standards (always apply)
-
-- **Style:** `snake_case` names, native pipe `|>`, `<-` assignment, explicit `return()` in
-  functions, function-level `roxygen2` documentation inside scripts.
-- **Validation:** validate inputs with `checkmate`; surface diagnostics and errors through
-  `cli`.
-- **No global state:** outside the orchestration entry points, do not introduce implicit
-  global-state dependencies.
-- **Determinism:** identical inputs and options must produce identical outputs. Seed any
-  randomness. No network or filesystem side effects in library code.
-- **No hard-coded literals:** paths, thresholds, URLs, magic numbers, and repeated strings
-  belong in `r/0-general_pipeline/01-setup/01-constants.R`, reached via
-  `get_pipeline_constants()`. See [.claude/guidelines/constants.md](.claude/guidelines/constants.md).
-- **No backward-compatibility scaffolding:** there are no consumers to protect. Remove
-  legacy patterns, wrapper files, and dead code when you find them — do not preserve them.
-- **Stable contracts:** preserve public function signatures, return types, and output
-  schemas unless a modernization genuinely requires changing them. The enforced contracts
-  are listed in the architecture doc.
+WHEP Digitalization Pipeline — script-oriented R pipeline processing WHEP source
+workbooks through four stages: general bootstrap → import → post-processing → export.
 
 ## How to work
 
-- **Deterministic, scoped changes only.** One concern per change; keep diffs focused.
-- **Tests are the ground truth.** Every behavior or contract change ships with updated or
-  new `testthat` tests. Never accept a change that lowers the test pass rate. See
-  [.claude/guidelines/testing.md](.claude/guidelines/testing.md).
-- **Iterate on complex refactors.** Do not stop at the first correct version; reassess for
-  efficiency, modularity, and clarity. See
-  [.claude/guidelines/refactoring.md](.claude/guidelines/refactoring.md).
-- **Clean up temporary files before committing.** Write throwaway analysis, benchmark,
-  profiling, and verification artifacts (e.g. `*.out` run logs, one-off `*.R` scripts) to
-  gitignored scratch paths, and **delete them before committing** — leave the working tree
-  clean. Keep only files with durable, reusable value; never let temporary files linger in
-  a commit or the tree. Durable results belong in [.claude/progress.md](.claude/progress.md)
-  / [.claude/results.tsv](.claude/results.tsv) / memory, not in scratch logs.
-- **Tone:** strict and technical. No marketing language, no conversational filler in code,
-  comments, or docs.
+- **Act autonomously.** Make decisions when context is sufficient. Default to action, not
+  confirmation. Ask only when a decision is ambiguous, irreversible, high-impact, or
+  lacks information. Document assumptions.
+- **Use `/autocode` by default** for optimization, test-fixing, and code-quality work.
+  Use parallel agents when it improves speed or coverage.
+- **Reuse project context.** Read `.claude/docs/` and `.claude/progress.md` instead of
+  rescanning the codebase. These are kept current.
+- **Deliver complete solutions.** Do not stop at partial progress. Iterate on complex
+  refactors for efficiency, modularity, and clarity.
+- **One concern per change.** Keep diffs focused; clean temporary files before committing.
+  Durable results go in `.claude/progress.md` / `.claude/results.tsv`, not scratch logs.
+- **Tests are ground truth.** Every behavior change ships with tests. Never lower pass rate.
+- **Tone:** strict, technical. No filler.
 
-## Commands
+## Reference docs (read on demand, not every session)
 
-- `/autocode` — autonomous optimization loop (run tests → keep improvements → discard
-  regressions). Config in `autocode.toml` (repo root); run state in
-  [.claude/progress.md](.claude/progress.md) and [.claude/results.tsv](.claude/results.tsv).
-  See [.claude/commands/autocode.md](.claude/commands/autocode.md).
+- [architecture.md](.claude/docs/architecture.md) — stages, data flow, entry points,
+  contracts.
+- [codebase-map.md](.claude/docs/codebase-map.md) — every file/function by stage (use
+  instead of grepping).
+- [constants-and-options.md](.claude/docs/constants-and-options.md) —
+  `get_pipeline_constants()` surface and `whep.*` options.
+- [conventions.md](.claude/docs/conventions.md) — run/test, load order, determinism,
+  parallelism, gotchas.
+- [common-changes.md](.claude/docs/common-changes.md) — recipes for frequent edits.
+  **Check here first** for typical changes.
+- [guidelines/](.claude/guidelines/) — task playbooks (refactoring, performance, testing,
+  constants, readme-generation).
 
-## Run & test (quick reference)
+## Engineering standards
+
+- `snake_case`, native pipe `|>`, `<-`, explicit `return()`, `roxygen2` docs.
+- Validate with `checkmate`; errors/diagnostics via `cli`.
+- No global state outside orchestration entry points.
+- Deterministic: identical inputs + options → identical outputs. Seed randomness.
+- No hard-coded literals — centralize in `01-constants.R` via `get_pipeline_constants()`.
+- No backward-compatibility scaffolding — remove legacy code on sight.
+- Preserve public function signatures and contracts unless modernization requires change.
+
+## Run & test
 
 ```r
-# Run the pipeline
 source(here::here("r", "run_pipeline.R"), local = TRUE)
 run_pipeline(show_view = FALSE, pipeline_root = here::here("r"))
 ```
 
-Run the tests with the command in `autocode.toml` (`[metrics.tests]`), which sources
-`tests/test_helper.R` and runs all five suite directories. Note: `tests/testthat/test_all.R`
-is currently broken — see [.claude/docs/conventions.md](.claude/docs/conventions.md#running-tests).
+Tests: use the command in `autocode.toml` `[metrics.tests]`. Do **not** use
+`tests/testthat/test_all.R` (broken). See [conventions.md](.claude/docs/conventions.md).
+
+## Commands
+
+- `/autocode` — autonomous optimization loop. Config: `autocode.toml`. State:
+  [progress.md](.claude/progress.md), [results.tsv](.claude/results.tsv).

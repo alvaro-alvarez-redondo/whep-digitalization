@@ -1,4 +1,15 @@
 /data
-# autocode jun24 scratch
+
+# R artifacts
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Autocode / scratch
 perf/_*.R
-/*.out
+*.out
