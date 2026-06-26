@@ -126,14 +126,18 @@ export_lists <- function(
     )
   }
 
-  unique_cache <- build_column_unique_cache(
-    layer_by_sheet = layer_by_sheet,
-    union_columns = union_columns
-  )
-
   export_columns <- resolve_lists_export_columns(
     config = config,
     union_columns = union_columns
+  )
+
+  # Only the configured export columns are ever written, so precompute unique
+  # values for exactly those columns. Building the cache over the full union
+  # wasted unique()+sort() on never-exported columns — notably the
+  # high-cardinality `value` column across all four layers.
+  unique_cache <- build_column_unique_cache(
+    layer_by_sheet = layer_by_sheet,
+    union_columns = export_columns
   )
 
   # Each column is written to `unique_<normalize_filename(column)>.xlsx`. If two
