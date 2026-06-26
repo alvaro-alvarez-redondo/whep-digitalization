@@ -161,7 +161,12 @@ run_postpro_pipeline_batch <- function(
     progress(
       "Post-Processing Pipeline Progress: initializing audit directories"
     )
-    audit_paths <- initialize_postpro_output_root(config)
+    # Resolve the audit paths only. The directory tree is created in the very
+    # next step by generate_postpro_rule_templates() (which calls
+    # initialize_postpro_output_root internally), so creating it here as well
+    # re-stats/re-creates the whole audit subtree on every run for no benefit.
+    # All audit-dir writes (template, persisted audit) happen after that step.
+    audit_paths <- get_postpro_output_paths(config)
 
     progress("Post-Processing Pipeline Progress: generating rule templates")
     template_paths <- generate_postpro_rule_templates(
