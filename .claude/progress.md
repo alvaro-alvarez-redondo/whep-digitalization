@@ -53,6 +53,34 @@ read these before planning experiments.
 Condensed record of past autocode sessions. See `results.tsv` for the full experiment
 ledger with per-commit scores.
 
+### jul4-b — NA-footnote audit fix + boundary re-confirmation (branch `claude/nervous-vaughan-58e3e8`, off `autocode/jul4`)
+
+- **exp-B (keep, `1d9aea6`): removed the duplicate NA-row append in `apply_footnote_rules`
+  step 2.** `strsplit(NA, ";")` already yields one NA token per NA cell; the extra append
+  duplicated ~76% of `fn_long` rows. Data byte-identical at 120k + 357k; audit semantics
+  corrected — 4 `clean_audit` NA-source rows halve `affected_rows` (120k rows
+  588/589/609/610; full 600/601/621/622, 32→16), `diag$clean$matched_count` −22.
+  Interleaved A/B: postpro −0.65..0.77s (~6%). NA-matching rules still match NA rows
+  exactly once (the "skip NA rows" boundary above is untouched). Verify goldens
+  re-captured post-fix **in that worktree**; main-worktree goldens predate the fix →
+  expect a diagnostics-only DIVERGED there after merge; re-capture with `reset`.
+- **exp-C (keep, `209fa14`):** dropped a redundant `trimws()` re-trim in the fn_long
+  empty-token blanking (token already trimmed one line above). Provably identical;
+  verifier IDENTICAL.
+- **exp-D (discard):** dedup-before-normalize inside `encode_rule_match_key` — dead
+  neutral (±0.05s); normalization is pass-1-only and `encode_rule_match_key` is only
+  0.16s/run total (fresh Rprof). Reverted.
+- **exp-E (rejected before edit):** wiring the unused `prepared_payload` API into the
+  layer runner — Rprof shows `build_conditional_rule_dictionary` is 0.015s/run (0.4%);
+  also unsafe as-is: `apply_conditional_rule_group` adds columns to `group_rules` by
+  reference (`as.data.table` is no-copy), so cross-pass plan reuse leaks state and can
+  flip its source-value-column presence branch. The API stays (read-only tests pin it).
+- **Fresh 120k profile (post-fix):** group-apply 0.99s, footnotes 0.59s, audit persist
+  0.60s, rule loading 0.92s + validation 0.27s (both prod-cached bench artifacts).
+  No >5% in-scope candidate remains — jun26 "postpro exhausted" boundary re-confirmed.
+- **Protocol note: a concurrent autocode session's R processes make sequential A/Bs
+  unusable** (base arm read 17.8–23.5s vs true ~11.9s). Interleave arms in one process.
+
 ### jun18 — correctness (506/41 → 975/0)
 
 Fixed 41 test failures: eager `source_postpro_scripts()` at module load (+415 passes),
