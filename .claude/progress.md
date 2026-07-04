@@ -110,6 +110,28 @@ validation-error strings.
 - Combined isolated import savings ≈ −21s on the frozen copy (~−25% of import);
   postpro ~−0.4s @120k (~−1.3s full) + memory.
 
+**jul4 bug-hunt round** (three parallel adversarial sweeps over the modules the
+perf loop never touched; every finding re-verified by trace before acting):
+- **Fixed:** locale-dependent `sort()` on export column names
+  (`normalize_for_comparison`, `collect_union_columns` → `method = "radix"`,
+  matching the documented determinism contract); latent duplicate-column guard in
+  `resolve_canonical_header_renames` (two aliases → one target).
+- **Spun off (behavior changes needing sign-off):** checkpoint staleness — RDS
+  checkpoints are keyed by static name with NO input/config invalidation; on this
+  live-growing dataset an opt-in user gets silently stale imports (chip
+  task_6fd14092). Earlier: clean-audit NA double-count (fixed in a parallel
+  session, branch `claude/nervous-vaughan-58e3e8`).
+- **Refuted after trace (agents' claims that didn't survive):** header-collision
+  primary scenario (the `c(header_names, new_names)` guard already blocks it);
+  standardize "all-NA groups become string NA" (`as.character(NA_real_)` is
+  `NA_character_`); revert-sequencing bug (not live); melt drops are mitigated by
+  `setcolorder`; `sort_pipeline_stage_dt` already radix via `setorderv`.
+- **Blocked by read-only tests:** `cached_unzip` (10 explicit source refs in
+  `tests/`+`perf/`) and `generate_export_path` (contract test) are pipeline-dead
+  but cannot be removed — annotated dead/pinned in the codebase map.
+- **Measured lean (no action):** import tail at 601k = drop_na 0.0 + validate 1.2
+  + consolidate 0.06 + sort 0.23 ≈ 1.5s; postpro audit 0.66 / standardize 0.62 @120k.
+
 
 Condensed record of past autocode sessions. See `results.tsv` for the full experiment
 ledger with per-commit scores.
