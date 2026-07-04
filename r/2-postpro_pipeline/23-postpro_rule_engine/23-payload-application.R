@@ -455,26 +455,15 @@ apply_rule_payload <- function(
     ))
   }
 
-  if (!is.null(prepared_payload)) {
-    footnote_rules <- prepared_payload$footnote_rules
-    grouped_dictionary <- prepared_payload$grouped_dictionary
-    group_source_columns <- prepared_payload$group_source_columns
-  } else {
-    rules_dt <- data.table::as.data.table(canonical_rules)
-    footnote_mask <- rules_dt$column_source == "footnotes"
-    footnote_rules <- rules_dt[footnote_mask]
-    standard_rules <- rules_dt[!footnote_mask]
-    grouped_dictionary <- if (nrow(standard_rules) > 0L) {
-      build_conditional_rule_dictionary(standard_rules, validated_stage_name)
-    } else {
-      list()
-    }
-    group_source_columns <- vapply(
-      grouped_dictionary,
-      function(g) g$column_source[[1]],
-      character(1)
+  if (is.null(prepared_payload)) {
+    prepared_payload <- prepare_rule_payload_execution_plan(
+      canonical_rules = canonical_rules,
+      stage_name = validated_stage_name
     )
   }
+  footnote_rules <- prepared_payload$footnote_rules
+  grouped_dictionary <- prepared_payload$grouped_dictionary
+  group_source_columns <- prepared_payload$group_source_columns
 
   audit_tables <- list()
   overwrite_tables <- list()
