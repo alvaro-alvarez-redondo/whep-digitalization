@@ -45,6 +45,9 @@ constants and option flags these functions read, see
 | `cached_unzip(zip_path, exdir, overwrite)` | `02-io-cache.R` | Unzip only when archive newer than target | PUB |
 | `coerce_numeric_safe(x)` | `02-numeric-coercion.R` | Char→numeric, empties/non-numeric → NA, no warnings | PUB |
 | `map_with_progress(x, .f, ...)` | `02-progress.R` | `progressr`-aware map (gated by `whep.progress.enabled`) | PUB |
+| `with_pipeline_progress(expr, stage)` | `02-progress.R` | The wrapper all four stage runners use instead of `progressr::with_progress()` directly. Bundles the stage handler + render gate + redraw throttle + output buffering (so the parallel import bar doesn't flicker). Evaluates `expr` lazily in the caller's frame. | PUB |
+| `pipeline_alert_info(message)` / `pipeline_alert_success(message)` / `pipeline_paint(text, role)` / `pipeline_console_palette()` | `02-progress.R` | Palette-matched console messages: `cli::cli_alert_*` replacements whose symbol + accents use the same pastel palette as the bars (the success tick matches the bar's done tick). Used by `run_pipeline.R` for the per-script and completion lines. | PUB |
+| `pipeline_progress_handlers(stage, enable)` / `pipeline_progress_enabled()` / `pipeline_progress_dark()` | `02-progress.R` | Build the shared cli progress handler for a stage (label baked in; `"import"` adds a rate column; theme-aware colors; throttled redraw; `"void"`/fallback when disabled/unavailable); resolve the render gate (`whep.progress.enabled` **and** `interactive()`); resolve the dark palette (`whep.progress.dark` ▸ RStudio theme ▸ default dark). | PUB |
 | `sort_pipeline_stage_dt(dt, sort_columns)` | `02-sorting.R` | Sort by canonical business-key order | PUB |
 | `normalize_string` / `normalize_string_impl` / `clean_footnote` / `normalize_filename` | `02-string-normalization.R` | Lowercase-ASCII normalization (cardinality-aware fast path) | PUB/int |
 | `format_elapsed_time(seconds)` | `02-time-formatting.R` | Format `Ns` / `Nm Ns` / `Nh Nm` for CLI | PUB |
@@ -71,7 +74,7 @@ constants and option flags these functions read, see
 | Function | File | Purpose | |
 |---|---|---|---|
 | `read_pipeline_files(file_list_dt, config, progressor)` | `11-batching.R` | Batch + read files (parallel when a non-sequential `future` plan is set) | PUB |
-| `split_workbook_batches` / `resolve_import_workbook_batch_size` / `read_workbook_batch` | `11-batching.R` | Batching internals | int |
+| `split_workbook_batches` / `resolve_import_workbook_batch_size` / `resolve_import_future_scheduling` / `read_workbook_batch` | `11-batching.R` | Batching internals (`resolve_import_future_scheduling` sets the `future_lapply` chunk count so read progress relays steadily) | int |
 | `normalize_header_names` / `validate_header_normalization` / `resolve_canonical_header_renames` | `11-header-normalization.R` | Normalize + canonicalize headers (alias `country → polity`) | int |
 | `read_excel_sheet` / `read_file_sheets` / `compute_non_empty_base_rows` | `11-sheet-read.R` | Read a sheet/file as text; tag `variable := sheet_name`; drop empty rows | int |
 | `assert_read_result_contract` / `build_read_error` / `safe_execute_read` / `has_read_errors` / `normalize_pipeline_read_result` / `create_empty_read_result` | `11-read-utils.R` | Read-result shape + error aggregation | int |
@@ -122,7 +125,7 @@ Largest stage. `source_postpro_scripts()` runs at module load (sourcing
 |---|---|---|
 | `run_cleaning_layer_batch(dataset_dt, config, dataset_name)` | Run the **clean** stage (multi-pass) | PUB |
 | `run_harmonize_layer_batch(dataset_dt, config, dataset_name)` | Run the **harmonize** stage (multi-pass) | PUB |
-| `run_rule_stage_layer_batch(dataset_dt, config, stage_name, dataset_name)` | Shared multi-pass driver for both | PUB |
+| `run_rule_stage_layer_batch(dataset_dt, config, stage_name, dataset_name, progress_pulse)` | Shared multi-pass driver for both. Optional `progress_pulse` callback fires once per pass for the live progress message (default `NULL`) | PUB |
 | `resolve_stage_multi_pass_controls` / `canonicalize_post_loop_annotation_columns` / `drop_empty_footnotes_column` | Multi-pass internals | int |
 
 ### `23-postpro_rule_engine/` (matching + application)

@@ -16,6 +16,13 @@ if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
   )
 }
 
+if (!exists("pipeline_progress_handlers", mode = "function", inherits = TRUE)) {
+  source(
+    here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+    echo = FALSE
+  )
+}
+
 #' @title run import pipeline
 #' @description run the complete import pipeline by discovering source files,
 #' reading sheets, transforming to wide and long outputs, validating each
@@ -124,11 +131,13 @@ run_import_pipeline <- function(config) {
   }
 
   total_steps <- (2 * nrow(file_list_dt)) + 4
+  progress_messages <- get_pipeline_constants()$progress$messages$import
 
-  result <- progressr::with_progress({
+  result <- with_pipeline_progress(
+    {
     progress <- progressr::progressor(steps = total_steps)
 
-    progress("Import Pipeline Progress: reading source files")
+    progress(progress_messages$reading)
     read_pipeline_result <- read_pipeline_files(
       file_list_dt = file_list_dt,
       config = config,
@@ -150,7 +159,7 @@ run_import_pipeline <- function(config) {
 
     read_data_list <- read_pipeline_result$read_data_list
 
-    progress("Import Pipeline Progress: transforming source files")
+    progress(progress_messages$transforming)
     transformed <- transform_files_list(
       file_list_dt = file_list_dt,
       read_data_list = read_data_list,
@@ -160,7 +169,7 @@ run_import_pipeline <- function(config) {
 
     transformed$long_raw <- drop_na_value_rows(transformed$long_raw)
 
-    progress("Import Pipeline Progress: splitting validation groups")
+    progress(progress_messages$splitting)
     validation_data_list <- split(
       transformed$long_raw,
       by = "document",
@@ -168,7 +177,7 @@ run_import_pipeline <- function(config) {
       sorted = FALSE
     )
 
-    progress("Import Pipeline Progress: validating transformed records")
+    progress(progress_messages$validating)
     validation_results <- lapply(
       validation_data_list,
       function(document_dt) validate_long_dt(document_dt, config)
@@ -203,7 +212,9 @@ run_import_pipeline <- function(config) {
         warnings = consolidated_result$warnings
       )
     )
-  })
+    },
+    "import"
+  )
 
   save_pipeline_checkpoint(
     result = result,

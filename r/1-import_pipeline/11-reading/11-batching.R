@@ -53,6 +53,46 @@ resolve_import_workbook_batch_size <- function(config) {
   return(resolved_batch_size)
 }
 
+#' Resolve the future.apply scheduling factor for the parallel import read stage
+#' Reads `config$performance$import_future_scheduling`, falling back to the
+#' pipeline constant default. The factor controls how many chunks
+#' `future_lapply()` creates (`~factor * workers`); a larger factor yields more,
+#' smaller chunks so progress relays steadily as each chunk's future resolves
+#' instead of arriving in one burst at the end. Used only by the read stage —
+#' the transform stage keeps default chunking (its closure captures the large
+#' read data, which more chunks would re-serialize).
+#' @param config Named configuration list.
+#' @return Positive numeric scalar scheduling factor.
+#' @examples
+#' \dontrun{
+#' resolve_import_future_scheduling(config)
+#' }
+resolve_import_future_scheduling <- function(config) {
+  assert_or_abort(checkmate::check_list(config, any.missing = FALSE))
+
+  default_scheduling <- get_pipeline_constants()$performance$import_future_scheduling
+  resolved_scheduling <- default_scheduling
+
+  if (
+    is.list(config$performance) &&
+      !is.null(config$performance$import_future_scheduling)
+  ) {
+    resolved_scheduling <- config$performance$import_future_scheduling
+  }
+
+  resolved_scheduling <- suppressWarnings(as.numeric(resolved_scheduling))
+
+  if (
+    length(resolved_scheduling) != 1L ||
+      is.na(resolved_scheduling) ||
+      resolved_scheduling <= 0
+  ) {
+    return(default_scheduling)
+  }
+
+  return(resolved_scheduling)
+}
+
 #' Resolve import parallel worker count
 #' Reads the worker count for parallel import in priority order: the
 #' `whep.import.parallel_workers` option, then
@@ -297,36 +337,39 @@ read_pipeline_files <- function(file_list_dt, config, progressor = NULL) {
   use_parallel <- !inherits(future::plan(), "sequential") &&
     length(workbook_batches) > 1L
 
+  # One progress tick per file (before the batch is read), used by BOTH the
+  # sequential and parallel branches so the (2*nfiles)+4 import budget closes
+  # identically in either mode. In the parallel branch this closure is exported
+  # to the workers; the progressor relays its signals back as each batch's
+  # future resolves (see resolve_import_future_scheduling for relay cadence).
+  # Ticks are emitted per element of `batch_paths` (including any duplicate
+  # paths), matching the un-deduped file count, not the deduped reads inside
+  # read_workbook_batch().
+  read_message_template <- get_pipeline_constants()$progress$messages$import$read_file
+  signal_batch_reads <- function(batch_paths) {
+    if (is.null(progressor)) {
+      return(invisible(NULL))
+    }
+    for (file_path in batch_paths) {
+      progressor(sprintf(read_message_template, fs::path_file(file_path)))
+    }
+    return(invisible(NULL))
+  }
+
+  read_one_batch <- function(batch_paths) {
+    signal_batch_reads(batch_paths)
+    read_workbook_batch(file_paths = batch_paths, config = config)
+  }
+
   if (use_parallel) {
     batch_results <- future.apply::future_lapply(
       workbook_batches,
-      function(batch_paths) {
-        read_workbook_batch(
-          file_paths = batch_paths,
-          config = config
-        )
-      },
-      future.seed = NULL
+      read_one_batch,
+      future.seed = NULL,
+      future.scheduling = resolve_import_future_scheduling(config)
     )
   } else {
-    batch_results <- lapply(
-      workbook_batches,
-      function(batch_paths) {
-        if (!is.null(progressor)) {
-          lapply(batch_paths, function(file_path) {
-            progressor(sprintf(
-              "Import Pipeline Progress: reading %s",
-              fs::path_file(file_path)
-            ))
-          })
-        }
-
-        read_workbook_batch(
-          file_paths = batch_paths,
-          config = config
-        )
-      }
-    )
+    batch_results <- lapply(workbook_batches, read_one_batch)
   }
 
   batch_read_lists <- lapply(batch_results, `[[`, "read_data_list")

@@ -13,6 +13,15 @@ if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
   )
 }
 
+# Sourced before the first "running pipeline script" message so the palette-aware
+# console helpers (pipeline_alert_info/_success, pipeline_paint) are available.
+if (!exists("pipeline_alert_info", mode = "function", inherits = TRUE)) {
+  source(
+    here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+    echo = FALSE
+  )
+}
+
 #' @title Run full project pipeline
 #' @description Runs the general, import, post-processing, and export pipeline
 #'   scripts in deterministic sequence.
@@ -63,12 +72,11 @@ run_pipeline <- function(
 
   elapsed_seconds <- (proc.time() - pipeline_start_time)[["elapsed"]]
   iteration_summary <- build_postpro_iteration_summary()
-  cli::cli_alert_success(
-    paste0(
-      "Pipeline completed in {.strong {format_elapsed_time(elapsed_seconds)}}",
-      iteration_summary
-    )
-  )
+  pipeline_alert_success(paste0(
+    "Pipeline completed in ",
+    cli::style_bold(format_elapsed_time(elapsed_seconds)),
+    iteration_summary
+  ))
 
   return(invisible(TRUE))
 }
@@ -238,9 +246,10 @@ run_pipeline_script <- function(pipeline_file) {
   }
 
   pipeline_name <- basename(pipeline_file)
-  cli::cli_alert_info(
-    "{.strong running pipeline script: {.val {pipeline_name}}}"
-  )
+  pipeline_alert_info(paste0(
+    "running pipeline script: ",
+    pipeline_paint(paste0("\"", pipeline_name, "\""), "accent")
+  ))
 
   tryCatch(
     {

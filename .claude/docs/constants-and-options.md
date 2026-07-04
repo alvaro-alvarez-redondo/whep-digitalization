@@ -22,7 +22,29 @@ Cached named list (`.pipeline_constants_cache`, no invalidation). Access: `const
 ### Performance thresholds
 - `performance$normalize_unique_min_n` = `256L`, `sample_n` = `2048L`, `ratio_threshold` = `0.85`.
 - `performance$import_workbook_batch_size` = `32L`.
-- `performance$import_parallel_workers` = `"auto"` (→ `min(4, cores-1)` workers; explicit int honored; `1L` = sequential).
+- `performance$import_parallel_workers` = `"auto"` (→ `min(import_parallel_workers_auto_max, cores-1)` workers; explicit int honored; `1L` = sequential). `import_parallel_workers_auto_max` = `8L`.
+- `performance$import_future_scheduling` = `4` — `future_lapply` scheduling factor for the parallel import **read** stage only (`~factor * workers` chunks). Higher = more, smaller chunks → progress relays steadily instead of in one end-of-stage burst. Perf-neutral there (read closure captures only small `config`). NOT applied to transform (its closure captures the large `read_data_list`; more chunks measured ~5x slower). Override via `config$performance$import_future_scheduling`.
+
+### Progress presentation (`progress$*`)
+Shared cli-backed progress-bar config used by all four stage runners via
+`pipeline_progress_handlers(stage)` (in `02-progress.R`), which **assembles the
+cli format string at build time** from these pieces (the colors are theme-aware,
+so finished format strings can't be precomputed). One visual family (spinner +
+bar + percent + live status; no ETA); stages differ only by a label baked in as a
+literal — `progressr::progressor()` has no `name=`, so `{cli::pb_name}` can't be
+used. Keys: `stage_labels` (`general/import/postpro/export`); `rate_stages` =
+`"import"` (the only stage whose line adds `{cli::pb_rate}`); `palette$light`
+/`palette$dark` — a cli call per role (`muted`/`accent`/`success`) spliced as
+`{cli::<value>(<token>)}`, chosen by `pipeline_progress_dark()`. Dark mode uses
+white + soft pastel truecolor (`col_br_white`, `make_ansi_style('#a6c8ff')`,
+`make_ansi_style('#a6e3a1')`) so text stays legible and calm on a dark console;
+`update_interval` (`0.2` — minimum seconds between bar redraws, so the bursty
+parallel-import relay repaints once per burst instead of flickering); `show_after`;
+`fallback_bar_width`
+(txtProgressBar fallback); `pulse_template` (`"%s pass %d"`, the postpro per-pass
+`amount = 0` pulse); per-step `messages$import/postpro/export`. No
+`format_failed` — progressr does not render a custom failure format on a thrown
+condition.
 
 ### Paths
 - Relative names under `data/`: `import_dir`, `import_raw_dir`, `import_clean_dir`, `import_standardize_dir`, `import_harmonize_dir`, `postpro_dir`, `export_dir`, etc.
@@ -56,7 +78,8 @@ Cached named list (`.pipeline_constants_cache`, no invalidation). Access: `const
 | `whep.run_postpro_pipeline.auto` | `TRUE` | Auto-run postpro stage |
 | `whep.run_export_pipeline.auto` | `TRUE` | Auto-run export stage |
 | `whep.drop_na_values` | `TRUE` | Drop rows with NA value |
-| `whep.progress.enabled` | `TRUE` | Show progressr bar |
+| `whep.progress.enabled` | `TRUE` | Show the cli progress bar. Effective only when **also** `interactive()` — non-interactive runs (tests, benchmark, batch) stay silent. Gated via `pipeline_progress_enabled()`. |
+| `whep.progress.dark` | not set | Force the dark (`TRUE`) or light (`FALSE`) bar palette. Unset → respect `rstudioapi::getThemeInfo()$dark` if RStudio reports it, **else default dark**. Resolved by `pipeline_progress_dark()`. |
 | `whep.checkpointing.enabled` | `FALSE` | Enable RDS checkpoints |
 | `whep.import.parallel_workers` | not set | Import worker count override (`"auto"` default from constant) |
 

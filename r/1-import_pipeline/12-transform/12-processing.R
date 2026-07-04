@@ -105,34 +105,37 @@ process_files <- function(
   file_list_dt <- ensure_data_table(file_list_dt)
   file_rows_list <- lapply(indices, function(i) file_list_dt[i])
 
+  # One progress tick per file, used by BOTH branches so the import transform
+  # budget closes identically in sequential and parallel mode. The tick is
+  # NULL-guarded, so the perf-sensitive (progressor = NULL) paths are unchanged.
+  #
+  # Keep the future_lapply-over-indices structure: future.apply exports the
+  # `read_data_list` global to each worker once per session, which is cheap.
+  # Do NOT apply future.scheduling here (unlike the read stage) and do NOT
+  # switch to future_mapply over the data: both measured ~5-6x slower on the
+  # real dataset because they re-serialize the large read data per chunk. The
+  # transform stage is short (~10-15s) relative to the read, so default
+  # chunking's coarser relay is an acceptable trade for keeping it fast.
+  transform_message_template <- get_pipeline_constants()$progress$messages$import$transform_file
+  transform_one <- function(index) {
+    file_row <- file_rows_list[[index]]
+    df_wide <- read_data_list[[index]]
+
+    if (!is.null(progressor)) {
+      progressor(sprintf(transform_message_template, file_row[["file_name"]]))
+    }
+
+    transform_single_file(file_row, df_wide, config)
+  }
+
   if (use_parallel) {
     results <- future.apply::future_lapply(
       indices,
-      function(index) {
-        file_row <- file_rows_list[[index]]
-        df_wide <- read_data_list[[index]]
-
-        transform_single_file(file_row, df_wide, config)
-      },
+      transform_one,
       future.seed = NULL
     )
   } else {
-    results <- lapply(
-      indices,
-      function(index) {
-        file_row <- file_rows_list[[index]]
-        df_wide <- read_data_list[[index]]
-
-        if (!is.null(progressor)) {
-          progressor(sprintf(
-            "Import Pipeline Progress: transforming %s",
-            file_row[["file_name"]]
-          ))
-        }
-
-        transform_single_file(file_row, df_wide, config)
-      }
-    )
+    results <- lapply(indices, transform_one)
   }
 
   results <- Filter(Negate(is.null), results)
