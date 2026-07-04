@@ -350,13 +350,13 @@ get_cached_stage_payload_bundle <- function(config, stage_name) {
     stage_name = validated_stage_name
   )
 
-  if (!isTRUE(runtime_cache_settings$enabled)) {
+  build_canonical_payloads <- function() {
     payloads <- load_stage_rule_payloads(
       config = config,
       stage_name = validated_stage_name
     )
 
-    canonical_payloads <- lapply(payloads, function(payload) {
+    lapply(payloads, function(payload) {
       canonical_rules <- coerce_rule_schema(
         rule_dt = payload$raw_rules,
         stage_name = validated_stage_name,
@@ -370,10 +370,12 @@ get_cached_stage_payload_bundle <- function(config, stage_name) {
         canonical_rules = canonical_rules
       )
     })
+  }
 
+  if (!isTRUE(runtime_cache_settings$enabled)) {
     return(list(
       cache_key = cache_key,
-      canonical_payloads = canonical_payloads
+      canonical_payloads = build_canonical_payloads()
     ))
   }
 
@@ -407,29 +409,9 @@ get_cached_stage_payload_bundle <- function(config, stage_name) {
     return(disk_bundle)
   }
 
-  payloads <- load_stage_rule_payloads(
-    config = config,
-    stage_name = validated_stage_name
-  )
-
-  canonical_payloads <- lapply(payloads, function(payload) {
-    canonical_rules <- coerce_rule_schema(
-      rule_dt = payload$raw_rules,
-      stage_name = validated_stage_name,
-      rule_file_id = payload$rule_file_id,
-      rule_file_path = payload$rule_file_path %||% payload$rule_file_id
-    )
-
-    list(
-      rule_file_id = payload$rule_file_id,
-      rule_file_path = payload$rule_file_path,
-      canonical_rules = canonical_rules
-    )
-  })
-
   payload_bundle <- list(
     cache_key = cache_key,
-    canonical_payloads = canonical_payloads
+    canonical_payloads = build_canonical_payloads()
   )
 
   assign(cache_key, payload_bundle, envir = .stage_payload_bundle_cache)
