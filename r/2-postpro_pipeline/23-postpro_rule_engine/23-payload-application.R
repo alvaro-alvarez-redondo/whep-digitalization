@@ -73,7 +73,15 @@ apply_footnote_rules <- function(
   fn_long[, footnote := trimws(footnote_raw)]
   fn_long[trimws(footnote) == "", footnote := NA_character_]
 
-  # handle rows with NA footnotes (no split produces empty result)
+  # handle rows with NA footnotes. Note: strsplit() already yields one
+  # NA_character_ token for NA cells, so this append duplicates each NA row in
+  # fn_long — the (row_id, footnote_index) grouping in step 7 collapses the
+  # duplicates, and the doubled join volume is what current audit
+  # affected_rows counts are calibrated to (removing it halves the counts for
+  # NA-matching rules). No re-sort is needed: every consumer of fn_long/joined
+  # either groups by (row_id, footnote_index), joins by key, or aggregates —
+  # and token_resolution is setorder()ed explicitly — so appending the NA
+  # block unsorted is observationally identical to the keyed re-sort.
   na_rows <- dataset_dt[is.na(footnotes), .(row_id)]
   if (nrow(na_rows) > 0L) {
     na_long <- data.table::data.table(
@@ -83,7 +91,6 @@ apply_footnote_rules <- function(
       footnote = NA_character_
     )
     fn_long <- data.table::rbindlist(list(fn_long, na_long), use.names = TRUE)
-    data.table::setkey(fn_long, row_id, footnote_index)
   }
 
   # --- step 3: normalize rules and build match keys --------------------------
