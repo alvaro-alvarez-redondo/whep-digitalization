@@ -124,17 +124,25 @@ detect_duplicates_dt <- function(dt) {
 #' Checks that year values are within the plausible range `[1900, current_year + 1]`
 #' and that year ranges have a start year less than or equal to the end year.
 #' @param dt `data.frame`/`data.table` with a `year` column.
+#' @param current_year Optional integer scalar reference year. `NULL` (the
+#'   default) resolves it from the system clock. Callers validating many
+#'   tables in one run pass it once — `Sys.Date()` resolves the Windows
+#'   timezone database per call, which dominates the loop otherwise.
 #' @return Named list with `errors` (character vector) and `data` (original
 #'   `data.table`).
 #' @examples
 #' \dontrun{
 #' validate_year_values(long_dt)
 #' }
-validate_year_values <- function(dt) {
+validate_year_values <- function(dt, current_year = NULL) {
   dt_work <- ensure_data_table(dt)
   checkmate::assert_names(colnames(dt_work), must.include = "year")
 
-  current_year <- as.integer(format(Sys.Date(), "%Y"))
+  if (is.null(current_year)) {
+    current_year <- as.integer(format(Sys.Date(), "%Y"))
+  }
+  checkmate::assert_int(current_year)
+  current_year <- as.integer(current_year)
   min_year <- 1900L
   max_year <- current_year + 1L
 
@@ -201,12 +209,14 @@ validate_year_values <- function(dt) {
 #' a long-format data table.
 #' @param long_dt `data.frame`/`data.table` in long format.
 #' @param config Named configuration list with `column_required`.
+#' @param current_year Optional integer scalar reference year forwarded to
+#'   `validate_year_values()`; `NULL` resolves it from the system clock.
 #' @return Named list with `data` (validated `data.table`) and `errors`.
 #' @examples
 #' \dontrun{
 #' validate_long_dt(long_dt, config)
 #' }
-validate_long_dt <- function(long_dt, config) {
+validate_long_dt <- function(long_dt, config, current_year = NULL) {
   checkmate::assert_data_frame(long_dt)
   checkmate::assert_list(config, any.missing = FALSE)
   checkmate::assert_character(
@@ -216,7 +226,10 @@ validate_long_dt <- function(long_dt, config) {
   )
 
   mandatory_result <- validate_mandatory_fields_dt(long_dt, config)
-  year_result <- validate_year_values(mandatory_result$data)
+  year_result <- validate_year_values(
+    mandatory_result$data,
+    current_year = current_year
+  )
   duplicate_result <- detect_duplicates_dt(year_result$data)
 
   return(list(

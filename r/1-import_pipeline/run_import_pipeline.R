@@ -178,9 +178,18 @@ run_import_pipeline <- function(config) {
     )
 
     progress(progress_messages$validating)
+    # One reference year for the whole run: resolving it per document pays a
+    # Windows timezone-database lookup per call, which dominates the loop.
+    validation_current_year <- as.integer(format(Sys.Date(), "%Y"))
     validation_results <- lapply(
       validation_data_list,
-      function(document_dt) validate_long_dt(document_dt, config)
+      function(document_dt) {
+        validate_long_dt(
+          document_dt,
+          config,
+          current_year = validation_current_year
+        )
+      }
     )
 
     audited_dt_list <- lapply(validation_results, `[[`, "data")
