@@ -3,19 +3,26 @@
 ## Current state
 
 - **Tests:** 1007 passed / 0 failed (100%)
-- **Import (full, 729 workbooks):** ~38–40s at the new 8-worker default (was ~42s
-  at 4 workers — interleaved A/B: −3.9%). Sequential is ~89s.
-- **Postpro (120k subset):** ~11.5s (full 357k ≈ 42s).
-- **Export:** ~0.5s on the 120k subset (~0.3–1.9s full; 10 small `unique_*.xlsx` +
-  one ~40MB harmonize TSV). Now timed and included in `PIPELINE_SECONDS`
-  (`EXPORT_SECONDS` diagnostic; bench writes to a gitignored dir).
-- **Last session:** jun26 (branch `autocode/jun26`)
+- **Dataset is GROWING (jul4):** the import folder went 729 → 1360 workbooks
+  (601,766 long rows) with files still syncing in via Nextcloud **mid-session**.
+  Cross-run comparisons of the official metric are confounded by data drift —
+  freeze inputs before any A/B (jul4 used a local temp copy of the workbooks +
+  the pinned `data/.autocode_bench/raw_dt.rds`, 360,798 rows).
+- **Import (1360 workbooks, 8 workers):** ~70–85s on the live Nextcloud dir, ~72s
+  on a frozen local copy after the jul4 wins (fused read+transform −11.8s,
+  vectorized validation −9.3s, both measured isolated same-process).
+- **Postpro (120k subset):** ~11.3s cached-import min-of-5 (full 357k ≈ 42s).
+- **Export:** ~0.5s on the 120k subset. Unchanged.
+- **Last session:** jul4 (branch `autocode/jul4`; carries the jun29 progress-bars
+  work as its first commit)
 - **Measurement noise:** the official `PIPELINE_SECONDS` metric has a ~10% run-to-run
-  floor (cold first rep + worker spawn + Nextcloud-FS contention; postpro alone swings
-  ±7% with no code change). Decide import experiments with an **interleaved A/B in one
-  process** (`perf/_ab_*.R`) and postpro experiments with the **cached-import bench**
-  (`WHEP_BENCH_CACHE_IMPORT=1`, min of ≥5 reps). A single official run can read as a
-  false regression — do not keep/discard on one reading.
+  floor (cold first rep + worker spawn + Nextcloud-FS contention + antivirus scans of
+  fresh files; postpro alone swings ±7% with no code change) **plus dataset drift**.
+  Decide import experiments with a **same-process A/B on a frozen local workbook
+  copy** and postpro experiments with the **cached-import bench**
+  (`WHEP_BENCH_CACHE_IMPORT=1`, min of ≥5 reps) gated by the golden byte-identical
+  verifier. A single official run can read as a false regression — never
+  keep/discard on one reading.
 
 ## Optimization boundaries
 
@@ -47,8 +54,62 @@ read these before planning experiments.
   rules target all columns, so "mutable columns" = all columns. No saving.
 - **NA-row footnote skip is unsafe.** Some footnote rules intentionally match NA/blank
   sources and update other columns — skipping NA rows would change output.
+- **NA-footnote DEDUP changes audit counts (jul4).** `strsplit(NA_character_)` already
+  emits one NA token, so the `na_rows` append in `apply_footnote_rules` duplicates
+  every NA-footnote row (76% of rows) through the rules join. Removing it leaves the
+  harmonize/clean/normalize DATA byte-identical but **halves `affected_rows` on 4
+  clean-audit rows** (audit currently double-counts NA rows — latent bug, spun off as
+  a separate fix task). Only the sort-skip fraction was kept (exp-B2).
+- **Rule-dictionary hoisting is dead (jul4, measured).** Rebuilding the conditional
+  rule dictionary costs 0.08s across all 4 passes × 7 payloads — not worth plumbing
+  `prepared_payload` through the layer runner (which would also have to guard against
+  `apply_conditional_rule_group` mutating `group_dt` by reference across passes).
+- **Per-column join-key encode caching: small (jul4, measured).** Dataset-side
+  `encode_rule_match_key` per source column is 3–13ms @120k (cardinality-aware
+  normalization); ~16 groups × 4 passes ≈ 0.4–0.6s total. Possible with
+  changed-columns invalidation, but low reward vs. staleness risk.
+- **The official metric's rule-loading share is inflated by design.** The bench
+  disables `runtime_cache`/schema cache, so every postpro run re-reads rule xlsx
+  (~2s @120k, also re-read inside `persist_postpro_audit`); production caches them.
+  Passing loaded payload bundles into persist would only game the bench — skipped.
 
 ## Session archive
+
+### jul4 — import main-process overhead eliminated; postpro cycle-detection lazy
+
+Fresh profile on the grown dataset (1360 workbooks / 601,766 rows — +87% since
+jun26) found the real headroom had moved to the import **main process**, not readxl:
+per-document validation looped 1360 × (table copy + `Sys.Date()` timezone lookup +
+per-row error pasting), and the two-stage read→transform re-exported the whole
+`read_data_list` to the transform workers (~11.6s of serialize). All experiments
+gated on frozen inputs (local workbook copy + pinned raw_dt.rds) with byte-identical
+verifiers covering data, audits, overwrites, multipass diagnostics, and all 418,825
+validation-error strings.
+
+- **exp-A (keep): one reference year per run.** `validate_year_values` resolved
+  `Sys.Date()` per document (Windows tz-database lookup each call). Isolated
+  validation step 9.27s → 4.56s (−51%).
+- **exp-B (discard → spun off):** deduping the NA-footnote rows is data-identical but
+  halves 4 clean-audit `affected_rows` (see boundaries) — filed as a correctness fix,
+  not a perf keep. **exp-B2 (keep):** drop the `setkey` re-sort (order provably
+  unobservable); perf-neutral hygiene.
+- **exp-C (keep): lazy stage-state records.** Multi-pass cycle detection serialized
+  the full table every pass; now a sound fingerprint + column-pointer copy, exact
+  serialize only on fingerprint collision (verdict-preserving by construction).
+  86ms → 20ms per state @120k (×3 @full); stored state 25MB → 10MB per pass.
+  Sub-noise in the official bench.
+- **exp-E (keep, biggest single win): vectorized per-document validation.**
+  `validate_long_dt_by_document()` reproduces split-by-document semantics globally —
+  same rows document-major, same 418,825 error strings in the same order (8
+  adversarial fixtures incl. non-contiguous docs). Isolated step 9.99s → 0.65s
+  (−93%). Old per-table validators unchanged for their contract tests.
+- **exp-D (keep): fused read+transform batches.** `read_transform_pipeline_files()`
+  reads + transforms per batch in the worker; read data never round-trips. Same-process
+  A/B (fused arm cold): 81.4s → 69.6s (−14.5%); output identical incl. 15 real read
+  errors. Progress budget (2n+4) preserved; ticks interleave per batch now.
+- Combined isolated import savings ≈ −21s on the frozen copy (~−25% of import);
+  postpro ~−0.4s @120k (~−1.3s full) + memory.
+
 
 Condensed record of past autocode sessions. See `results.tsv` for the full experiment
 ledger with per-commit scores.

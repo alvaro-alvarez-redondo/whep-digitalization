@@ -82,7 +82,8 @@ constants and option flags these functions read, see
 ### `12-transform/`
 | Function | File | Purpose | |
 |---|---|---|---|
-| `transform_files_list(file_list_dt, read_data_list, config, progressor)` | `12-processing.R` | Transform all files → consolidated `list(wide_raw, long_raw)` | PUB |
+| `read_transform_pipeline_files(file_list_dt, config, progressor)` | `12-processing.R` | **Runtime import path:** fused read+transform per workbook batch (parallel when plan non-sequential); returns `list(transformed, errors)` — read data never round-trips to the main process | PUB |
+| `transform_files_list(file_list_dt, read_data_list, config, progressor)` | `12-processing.R` | Transform all files → consolidated `list(wide_raw, long_raw)` (unit-tested building block; superseded at runtime by the fused path) | PUB |
 | `process_files` / `transform_single_file` | `12-processing.R` | Per-file transform (parallel when plan is non-sequential) | int |
 | `assert_transform_result_contract(transform_result)` | `12-reshape.R` | **Contract:** result is `list(wide_raw, long_raw)`, both data.table | int |
 | `reshape_to_long` / `add_metadata` / `transform_file_dt` / `resolve_commodity_name` / `build_empty_transform_result` | `12-reshape.R` | Wide→long melt; attach document/notes/yearbook | int |
@@ -93,8 +94,9 @@ constants and option flags these functions read, see
 |---|---|---|---|
 | `consolidate_audited_dt(dt_list, config)` | `13-output.R` | Row-bind with fill; enforce canonical column order | PUB |
 | `validate_output_column_order(config)` | `13-output.R` | Verify configured order covers the target schema | int |
-| `validate_long_dt(long_dt, config)` | `13-validate.R` | Run mandatory-field, year, duplicate validators; collect errors (non-fatal) | PUB |
-| `validate_mandatory_fields_dt` / `detect_duplicates_dt` / `validate_year_values` | `13-validate.R` | Individual validators | int |
+| `validate_long_dt_by_document(long_dt, config)` | `13-validate.R` | **Runtime import path:** vectorized equivalent of split-by-document + per-piece `validate_long_dt()` — same rows (document-major) and same error strings in the same order, ~15× faster | PUB |
+| `validate_long_dt(long_dt, config, current_year)` | `13-validate.R` | Run mandatory-field, year, duplicate validators on one table; collect errors (non-fatal) | PUB |
+| `validate_mandatory_fields_dt` / `detect_duplicates_dt` / `validate_year_values` | `13-validate.R` | Individual validators (`validate_year_values` takes optional `current_year` to avoid per-call clock lookups) | int |
 
 ### Orchestrator: `run_import_pipeline(config)` → `list(data, wide_raw, diagnostics)`; plus `run_import_pipeline_auto(auto_run, env)`.
 
@@ -124,6 +126,7 @@ Largest stage. `source_postpro_scripts()` runs at module load (sourcing
 | Function | Purpose | |
 |---|---|---|
 | `run_cleaning_layer_batch(dataset_dt, config, dataset_name)` | Run the **clean** stage (multi-pass) | PUB |
+| `fingerprint_stage_state` / `build_stage_state_record` / `resolve_stage_state_serialization` | Cheap sound fingerprint + lazy-serialized state records for multi-pass cycle detection (in `22-controls-cache.R`; replaced eager per-pass `serialize()`) | int |
 | `run_harmonize_layer_batch(dataset_dt, config, dataset_name)` | Run the **harmonize** stage (multi-pass) | PUB |
 | `run_rule_stage_layer_batch(dataset_dt, config, stage_name, dataset_name, progress_pulse)` | Shared multi-pass driver for both. Optional `progress_pulse` callback fires once per pass for the live progress message (default `NULL`) | PUB |
 | `resolve_stage_multi_pass_controls` / `canonicalize_post_loop_annotation_columns` / `drop_empty_footnotes_column` | Multi-pass internals | int |
