@@ -170,34 +170,25 @@ run_import_pipeline <- function(config) {
     transformed$long_raw <- drop_na_value_rows(transformed$long_raw)
 
     progress(progress_messages$splitting)
-    validation_data_list <- split(
-      transformed$long_raw,
-      by = "document",
-      keep.by = TRUE,
-      sorted = FALSE
-    )
-
     progress(progress_messages$validating)
-    # One reference year for the whole run: resolving it per document pays a
-    # Windows timezone-database lookup per call, which dominates the loop.
-    validation_current_year <- as.integer(format(Sys.Date(), "%Y"))
-    validation_results <- lapply(
-      validation_data_list,
-      function(document_dt) {
-        validate_long_dt(
-          document_dt,
-          config,
-          current_year = validation_current_year
-        )
-      }
+    # Vectorized equivalent of split(by = "document") + per-document
+    # validate_long_dt(): same validated rows (document-major) and the same
+    # error strings in the same order, without 1360 per-document table
+    # copies, aggregations, and clock lookups.
+    validation_result <- validate_long_dt_by_document(
+      transformed$long_raw,
+      config
     )
 
-    audited_dt_list <- lapply(validation_results, `[[`, "data")
+    validation_errors <- validation_result$errors
 
-    validation_errors <- unlist(
-      lapply(validation_results, `[[`, "errors"),
-      use.names = FALSE
-    )
+    # zero rows -> zero document groups: the split path consolidated an empty
+    # list, so keep that shape for exact parity
+    audited_dt_list <- if (nrow(validation_result$data) == 0L) {
+      list()
+    } else {
+      list(validation_result$data)
+    }
 
     consolidated_result <- consolidate_audited_dt(audited_dt_list, config)
     checkmate::assert_names(
