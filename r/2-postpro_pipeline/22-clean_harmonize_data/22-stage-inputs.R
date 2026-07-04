@@ -21,28 +21,6 @@ if (!exists("ensure_directories_exist", mode = "function", inherits = TRUE)) {
 # In-memory cache of schema-validation dependency signatures.
 .schema_validation_signature_cache <- new.env(parent = emptyenv())
 
-#' @title Load cleaning rule payloads
-#' @description Discovers cleaning rule files and returns deterministic payloads.
-#' @param config Named configuration list.
-#' @return List of payloads with `rule_file_id` and `raw_rules`.
-#' @importFrom checkmate assert_list
-load_cleaning_rule_payloads <- function(config) {
-  checkmate::assert_list(config, min.len = 1)
-
-  return(load_stage_rule_payloads(config = config, stage_name = "clean"))
-}
-
-#' @title Load harmonize rule payloads
-#' @description Discovers harmonize rule files and returns deterministic payloads.
-#' @param config Named configuration list.
-#' @return List of payloads with `rule_file_id` and `raw_rules`.
-#' @importFrom checkmate assert_list
-load_harmonize_rule_payloads <- function(config) {
-  checkmate::assert_list(config, min.len = 1)
-
-  return(load_stage_rule_payloads(config = config, stage_name = "harmonize"))
-}
-
 #' @title Canonicalize semicolon-delimited cells
 #' @description Deduplicates and alphabetically sorts semicolon-delimited tokens
 #' within each non-missing cell, then reconstructs deterministic cell strings.
