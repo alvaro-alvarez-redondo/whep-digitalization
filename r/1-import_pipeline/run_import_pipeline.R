@@ -138,34 +138,30 @@ run_import_pipeline <- function(config) {
     progress <- progressr::progressor(steps = total_steps)
 
     progress(progress_messages$reading)
-    read_pipeline_result <- read_pipeline_files(
+    # Fused read+transform: each batch worker reads its workbooks and
+    # transforms them in place, so the bulky intermediate read data never
+    # round-trips between the main process and the workers (that re-export
+    # dominated main-process import time). Output is identical to the
+    # two-stage read_pipeline_files() -> transform_files_list() path; the
+    # fused stage ticks read and transform once per file, so the
+    # (2 * nfiles) + 4 progress budget still closes.
+    fused_result <- read_transform_pipeline_files(
       file_list_dt = file_list_dt,
       config = config,
       progressor = progress
     )
 
     checkmate::assert_names(
-      names(read_pipeline_result),
-      must.include = c("read_data_list", "errors")
-    )
-    checkmate::assert_list(
-      read_pipeline_result$read_data_list,
-      any.missing = TRUE
+      names(fused_result),
+      must.include = c("transformed", "errors")
     )
     checkmate::assert_character(
-      read_pipeline_result$errors,
+      fused_result$errors,
       any.missing = FALSE
     )
 
-    read_data_list <- read_pipeline_result$read_data_list
-
     progress(progress_messages$transforming)
-    transformed <- transform_files_list(
-      file_list_dt = file_list_dt,
-      read_data_list = read_data_list,
-      config = config,
-      progressor = progress
-    )
+    transformed <- fused_result$transformed
 
     transformed$long_raw <- drop_na_value_rows(transformed$long_raw)
 
@@ -207,7 +203,7 @@ run_import_pipeline <- function(config) {
       data = consolidated_data,
       wide_raw = transformed$wide_raw,
       diagnostics = list(
-        reading_errors = read_pipeline_result$errors,
+        reading_errors = fused_result$errors,
         validation_errors = validation_errors,
         warnings = consolidated_result$warnings
       )
