@@ -55,10 +55,13 @@ apply_footnote_rules <- function(
 
   # --- step 2: split footnotes by ";" into long format -----------------------
   # Vectorized explosion: split the whole column once, then build the long table
-  # with rep/sequence. This avoids grouping by a unique row_id (which creates one
-  # data.table group per row and re-runs strsplit twice per group). The result is
-  # identical to the per-row grouping: row ids ascend with token order, NA cells
-  # yield a single NA token at index 1, and empty groups contribute no rows.
+  # with rep/sequence (row ids ascend with token order). This avoids grouping by
+  # a unique row_id (which creates one data.table group per row and re-runs
+  # strsplit twice per group). strsplit maps an NA cell to a single NA token at
+  # index 1, which already is its long-format representation — NA-matching rules
+  # must see each physical row exactly once, or the audit's affected_rows
+  # double-counts. "" cells produce no tokens at all; step 7's safety net
+  # rewrites those rows' footnotes to NA.
   footnote_splits <- strsplit(
     as.character(dataset_dt$footnotes),
     ";",
@@ -72,19 +75,6 @@ apply_footnote_rules <- function(
   )
   fn_long[, footnote := trimws(footnote_raw)]
   fn_long[trimws(footnote) == "", footnote := NA_character_]
-
-  # handle rows with NA footnotes (no split produces empty result)
-  na_rows <- dataset_dt[is.na(footnotes), .(row_id)]
-  if (nrow(na_rows) > 0L) {
-    na_long <- data.table::data.table(
-      row_id = na_rows$row_id,
-      footnote_raw = NA_character_,
-      footnote_index = 1L,
-      footnote = NA_character_
-    )
-    fn_long <- data.table::rbindlist(list(fn_long, na_long), use.names = TRUE)
-    data.table::setkey(fn_long, row_id, footnote_index)
-  }
 
   # --- step 3: normalize rules and build match keys --------------------------
   rules_dt <- data.table::as.data.table(footnote_rules)
@@ -326,7 +316,7 @@ apply_footnote_rules <- function(
   # update footnotes in dataset
   dataset_dt[reconstructed, footnotes := i.footnotes_new, on = "row_id"]
 
-  # rows without any footnote entries (should not happen, but safety net)
+  # rows with zero footnote tokens ("" cells split to nothing): rewrite to NA
   missing_recon <- setdiff(seq_len(n_rows), reconstructed$row_id)
   if (length(missing_recon) > 0L) {
     data.table::set(
