@@ -37,17 +37,17 @@ constants and option flags these functions read, see
 |---|---|---|---|
 | `assert_or_abort(check_result)` | `02-assertions.R` | Pass `TRUE`, abort on error string — used by every helper | int |
 | `save/load/clear_pipeline_checkpoint(...)` | `02-checkpoints.R` | RDS checkpointing (gated by `whep.checkpointing.enabled`) | PUB |
-| `get_config_string` / `generate_export_path(config, base, type, ...)` | `02-config-accessors.R` | Nested config access; build export paths. `generate_export_path` is dead code (superseded by `build_processed_export_path()`; remove) | PUB/dead |
+| `get_config_string` / `generate_export_path(config, base, type, ...)` | `02-config-accessors.R` | Nested config access; build export paths. `generate_export_path` has no pipeline callers (superseded by `build_processed_export_path()`) but is pinned by a read-only contract test in `test-helpers.R` — keep until that test is retired | PUB |
 | `drop_na_value_rows(dt, value_column)` | `02-data-cleaning.R` | Drop NA-value rows (gated by `whep.drop_na_values`) | PUB |
 | `ensure_data_table` / `copy_as_data_table` / `coerce_to_data_table` | `02-data-table.R` | data.frame ↔ data.table coercion | int |
 | `assign_environment_values(values, env)` | `02-environment.R` | Deterministic named assignment into an env | int |
 | `validate_export_import(df, base_name)` | `02-export-validation.R` | Validate export input is a non-empty data.frame | int |
-| `cached_unzip(zip_path, exdir, overwrite)` | `02-io-cache.R` | Unzip only when archive newer than target | PUB |
 | `coerce_numeric_safe(x)` | `02-numeric-coercion.R` | Char→numeric, empties/non-numeric → NA, no warnings | PUB |
 | `map_with_progress(x, .f, ...)` | `02-progress.R` | `progressr`-aware map (gated by `whep.progress.enabled`) | PUB |
 | `with_pipeline_progress(expr, stage)` | `02-progress.R` | The wrapper all four stage runners use instead of `progressr::with_progress()` directly. Bundles the stage handler + render gate + redraw throttle + output buffering (so the parallel import bar doesn't flicker). Evaluates `expr` lazily in the caller's frame. | PUB |
 | `pipeline_alert_info(message)` / `pipeline_alert_success(message)` / `pipeline_paint(text, role)` / `pipeline_console_palette()` | `02-progress.R` | Palette-matched console messages: `cli::cli_alert_*` replacements whose symbol + accents use the same pastel palette as the bars (the success tick matches the bar's done tick). Used by `run_pipeline.R` for the per-script and completion lines. | PUB |
 | `pipeline_progress_handlers(stage, enable)` / `pipeline_progress_enabled()` / `pipeline_progress_dark()` | `02-progress.R` | Build the shared cli progress handler for a stage (label baked in; `"import"` adds a rate column; theme-aware colors; throttled redraw; `"void"`/fallback when disabled/unavailable); resolve the render gate (`whep.progress.enabled` **and** `interactive()`); resolve the dark palette (`whep.progress.dark` ▸ RStudio theme ▸ default dark). | PUB |
+| `cached_unzip(zip_path, exdir, overwrite)` | `02-io-cache.R` | Unzip only when archive newer than target. No pipeline callers, but the read-only test harness sources the file by explicit path (10 refs in `tests/` + `perf/`) — keep until those lists are retired. Known limitation: mtime guard can serve stale extractions after sync-tool mtime inversion | dead/pinned |
 | `sort_pipeline_stage_dt(dt, sort_columns)` | `02-sorting.R` | Sort by canonical business-key order | PUB |
 | `normalize_string` / `normalize_string_impl` / `clean_footnote` / `normalize_filename` | `02-string-normalization.R` | Lowercase-ASCII normalization (cardinality-aware fast path) | PUB/int |
 | `format_elapsed_time(seconds)` | `02-time-formatting.R` | Format `Ns` / `Nm Ns` / `Nh Nm` for CLI | PUB |

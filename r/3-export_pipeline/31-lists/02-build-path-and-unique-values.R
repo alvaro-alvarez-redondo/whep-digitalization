@@ -135,12 +135,14 @@ build_layer_tables_by_sheet <- function(layer_tables) {
 collect_union_columns <- function(layer_by_sheet) {
   checkmate::assert_list(layer_by_sheet, names = "named")
 
+  # radix keeps the union order locale-independent (the determinism contract);
+  # a bare sort() would follow the session LC_COLLATE
   union_columns <- unlist(
     lapply(layer_by_sheet, names),
     use.names = FALSE
-  ) |> 
-    unique() |> 
-    sort()
+  ) |>
+    unique() |>
+    sort(method = "radix")
 
   return(union_columns)
 }
