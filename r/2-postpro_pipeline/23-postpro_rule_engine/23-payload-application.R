@@ -74,7 +74,7 @@ apply_footnote_rules <- function(
     footnote_index = sequence(footnote_token_counts)
   )
   fn_long[, footnote := trimws(footnote_raw)]
-  fn_long[trimws(footnote) == "", footnote := NA_character_]
+  fn_long[footnote == "", footnote := NA_character_]
 
   # --- step 3: normalize rules and build match keys --------------------------
   rules_dt <- data.table::as.data.table(footnote_rules)
