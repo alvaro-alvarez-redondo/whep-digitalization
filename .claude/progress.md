@@ -80,6 +80,23 @@ ledger with per-commit scores.
   No >5% in-scope candidate remains — jun26 "postpro exhausted" boundary re-confirmed.
 - **Protocol note: a concurrent autocode session's R processes make sequential A/Bs
   unusable** (base arm read 17.8–23.5s vs true ~11.9s). Interleave arms in one process.
+- **exp-F (probe only, no change):** the footnote-engine audit suppresses rows on a
+  footnote-text no-op even for `column_target != "footnotes"` rules — such a rule's
+  target updates would apply UNAUDITED. Probed live data: clean_footnotes.xlsx has 518
+  target rules / 9,868 matched rows and **0 suppressed** (every real rule removes or
+  rewrites its footnote), so the gap is latent, not live. Follow-up validation guard
+  spawned as a separate task; audit semantics left untouched (hot path, pinned test).
+- **exp-G/H/I (keep, quality):** dead-code sweep over all 222 top-level functions —
+  removed never-referenced `load_cleaning_rule_payloads`/`load_harmonize_rule_payloads`
+  (`clear_pipeline_checkpoints`, `prepare_conditional_rule_group`,
+  `prepare_rule_payload_execution_plan` are test-pinned and stay); DRYed the duplicated
+  canonical-payload build in `get_cached_stage_payload_bundle`; `apply_rule_payload`
+  fallback now calls `prepare_rule_payload_execution_plan` instead of re-implementing
+  it. All byte-identical (verifier IDENTICAL), tests 1007/0. No hardcoded `__ANY__`
+  literals outside constants.
+- **Wider-scope frontier after this session:** postpro perf exhausted (profile), quality
+  sweep clean, correctness probe clean. Import remains the only lane with headroom and
+  is owned by the concurrent `autocode/jul4` session — coordinate before entering.
 
 ### jun18 — correctness (506/41 → 975/0)
 
