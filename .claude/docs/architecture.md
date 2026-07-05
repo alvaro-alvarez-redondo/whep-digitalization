@@ -35,7 +35,8 @@ in the environment under canonical names (`whep_data_raw`, `whep_data_clean`,
 
 ```
 Excel workbooks (data/1-import/10-raw_import/**.xlsx)
-   │  discover_files → read_pipeline_files → transform_files_list → validate_long_dt
+   │  discover_files → read_transform_pipeline_files (fused read+transform)
+   │  → validate_long_dt_by_document
    ▼
 IMPORT result: list(data = long dt, wide_raw = wide dt, diagnostics)
    │  run_postpro_pipeline_batch:  audit → CLEAN → STANDARDIZE UNITS → HARMONIZE → persist audit

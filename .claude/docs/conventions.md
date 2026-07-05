@@ -53,23 +53,35 @@ independently. They run *in addition to* per-stage suites.
 
 ## Parallelism
 
-Three stages parallelize via `future.apply::future_lapply()` when plan is non-sequential
-and >1 work item: import read, import transform, list export.
+Two sites parallelize via `future.apply::future_lapply()` when plan is non-sequential
+and >1 work item: the fused import read+transform stage
+(`read_transform_pipeline_files()`), and list export.
 
 **Import parallelism auto-enabled by default.** `resolve_import_effective_workers()`:
 `"auto"` → `min(import_parallel_workers_auto_max=8, cores-1)` workers; explicit integer
 honored; `1` = sequential. Scoped plan, restored on exit. ~8 workers is the optimum on a
 16-core box (~2.3×).
 
-The import **read** `future_lapply` passes `future.scheduling =
+**Read and transform run fused, one unit of work per workbook batch** (jul4): each
+batch worker reads its workbooks (`read_workbook_batch()`) and immediately transforms
+each file (`transform_single_file()`), returning only transform results + read errors.
+The two-stage arrangement returned all read data to the main process and re-exported it
+to the transform workers — that re-export was the dominant main-process import cost
+(~11.6s serialize of a ~69s import; fused A/B −14.5% with identical output).
+`read_pipeline_files()` / `transform_files_list()` remain as unit-tested building
+blocks, not the runtime path.
+
+The fused `future_lapply` passes `future.scheduling =
 resolve_import_future_scheduling(config)` (constant `4`) so it makes more, smaller chunks.
 This matters for **progress**: `progressr` only relays a worker's progress when its future
 **resolves**, and the default factor of 1 makes few chunks → the bar can sit still then jump.
-Scheduling is safe for read (its closure captures only small `config`) but is **not** applied
-to transform: that closure captures the large `read_data_list`, so more chunks re-serialize it
-(measured ~5x slower; `future_mapply`-over-data is even worse). The progressor is called per
-file inside both the sequential and parallel branches, so the import budget (`2*nfiles + 4`)
-closes identically in either mode.
+Scheduling is safe here because the fused closure captures only small `config` + the batch's
+own metadata rows. (Historical: scheduling was **never** safe for the old two-stage
+transform, whose closure captured the large `read_data_list` — more chunks re-serialized it,
+measured ~5x slower; `future_mapply`-over-data was even worse.) The progressor ticks read and
+transform once per file inside both the sequential and parallel branches, so the import
+budget (`2*nfiles + 4`) closes identically in either mode; read/transform ticks interleave
+per batch instead of arriving as two separate sweeps.
 
 ## Progress bars
 

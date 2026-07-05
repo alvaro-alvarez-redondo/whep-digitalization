@@ -232,7 +232,11 @@ resolve_canonical_header_renames <- function(
         alias_old <- header_names[alias_match_idx[alias_rename_mask]]
         alias_new <- alias_targets[alias_rename_mask]
 
-        alias_keep <- !(alias_old %in% old_names)
+        # skip an alias when its source was already renamed by the canonical
+        # pass, and when an earlier alias in this call already claimed the
+        # same target — two aliases mapping to one target would otherwise
+        # hand setnames() duplicate new names and create duplicate columns
+        alias_keep <- !(alias_old %in% old_names) & !duplicated(alias_new)
         if (any(alias_keep)) {
           old_names <- c(old_names, alias_old[alias_keep])
           new_names <- c(new_names, alias_new[alias_keep])

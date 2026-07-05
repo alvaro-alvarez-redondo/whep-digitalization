@@ -134,11 +134,11 @@ run_rule_stage_layer_batch <- function(
     "single_pass_completed"
   }
 
-  state_signatures <- list()
+  state_records <- list()
   state_pass_indexes <- integer(0)
 
   if (isTRUE(multi_pass_enabled)) {
-    state_signatures <- list(serialize_stage_state_signature(working_data))
+    state_records <- list(build_stage_state_record(working_data))
     state_pass_indexes <- c(0L)
   }
 
@@ -224,7 +224,7 @@ run_rule_stage_layer_batch <- function(
     }
 
     pass_stop_reason <- "continued"
-    current_signature <- NULL
+    current_state_record <- NULL
     repeated_state_pass <- NA_integer_
 
     if (isTRUE(multi_pass_enabled)) {
@@ -235,11 +235,11 @@ run_rule_stage_layer_batch <- function(
         pass_stop_reason <- "converged_zero_change"
         stage_stop_reason <- pass_stop_reason
       } else {
-        current_signature <- serialize_stage_state_signature(pass_state$data)
+        current_state_record <- build_stage_state_record(pass_state$data)
         repeated_state_pass <- find_repeated_stage_state_pass(
-          state_signatures = state_signatures,
+          state_records = state_records,
           state_pass_indexes = state_pass_indexes,
-          candidate_signature = current_signature
+          candidate_record = current_state_record
         )
 
         if (!is.na(repeated_state_pass)) {
@@ -274,7 +274,7 @@ run_rule_stage_layer_batch <- function(
             ))
           }
         } else {
-          state_signatures[[length(state_signatures) + 1L]] <- current_signature
+          state_records[[length(state_records) + 1L]] <- current_state_record
           state_pass_indexes <- c(state_pass_indexes, as.integer(pass_index))
         }
       }
