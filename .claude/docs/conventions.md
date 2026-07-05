@@ -72,6 +72,9 @@ plan, restored on exit. ~4 workers is sweet spot (~2.1×); 8 < 4 in benchmarks.
 - `country` renamed to `polity` during import header normalization.
 - Unit prefixes: leading numeric multiplier (e.g. `"1000 head"`) folded into value.
 - Multi-pass cycle policy defaults to `"warn"`, max 10 passes, early convergence stop.
+- Footnote-rule audit records footnote-text changes only. `validate_canonical_rules()`
+  warns when a footnote rule preserves its matched text but targets another column —
+  the target update applies with no audit row.
 
 ## Scratch files
 

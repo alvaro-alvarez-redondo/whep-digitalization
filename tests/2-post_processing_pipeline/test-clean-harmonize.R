@@ -364,10 +364,15 @@ testthat::test_that("harmonize multi-pass converges chained footnote and unit ru
     stringsAsFactors = FALSE
   )
 
-  result <- run_harmonize_layer_batch(
-    dataset_dt = input_dt,
-    config = config,
-    dataset_name = "demo"
+  # rule 1 preserves the footnote text while targeting unit -- the chained
+  # trigger idiom validate_canonical_rules() flags as audit-invisible.
+  testthat::expect_warning(
+    result <- run_harmonize_layer_batch(
+      dataset_dt = input_dt,
+      config = config,
+      dataset_name = "demo"
+    ),
+    "audit-invisible target updates"
   )
 
   diagnostics <- attr(result, "layer_diagnostics")
@@ -805,10 +810,15 @@ testthat::test_that("clean footnote matched removal dominates overlapping unmatc
     stringsAsFactors = FALSE
   )
 
-  result <- run_cleaning_layer_batch(
-    dataset_dt = input_dt,
-    config = config,
-    dataset_name = "demo"
+  # rule 1 ("oil" -> "oil" with a commodity target) is the text-preserving
+  # shape validate_canonical_rules() flags as audit-invisible.
+  testthat::expect_warning(
+    result <- run_cleaning_layer_batch(
+      dataset_dt = input_dt,
+      config = config,
+      dataset_name = "demo"
+    ),
+    "audit-invisible target updates"
   )
 
   diagnostics <- attr(result, "layer_diagnostics")

@@ -438,6 +438,105 @@ testthat::test_that("validate_canonical_rules reports duplicate key location and
   testthat::expect_match(error_message, "rows=\\[1, 2, 3\\]")
 })
 
+testthat::test_that("validate_canonical_rules warns on audit-invisible footnote target updates", {
+  dataset_dt <- data.table::data.table(
+    unit = "kg",
+    footnotes = "estimated value; other note"
+  )
+
+  rules_dt <- data.table::data.table(
+    column_source = c("footnotes", "footnotes"),
+    value_source_raw = c("other note", "estimated value"),
+    value_source = c(NA_character_, "estimated value"),
+    column_target = c("unit", "unit"),
+    value_target_raw = c(NA_character_, NA_character_),
+    value_target = c("tonne", "kilogram")
+  )
+
+  testthat::expect_warning(
+    validate_canonical_rules(
+      rules_dt = rules_dt,
+      dataset_dt = dataset_dt,
+      rule_file_id = "clean_footnotes.xlsx",
+      stage_name = "clean"
+    ),
+    "audit-invisible target updates: \\[2\\]"
+  )
+})
+
+testthat::test_that("validate_canonical_rules warns on trimmed-raw and NA-preserving footnote rules", {
+  dataset_dt <- data.table::data.table(
+    unit = "kg",
+    footnotes = "estimated value"
+  )
+
+  # row 1: replacement reproduces the trimmed matched token (raw has trailing
+  # whitespace); row 2: rule matches NA footnotes and keeps them NA. Both apply
+  # target updates that the footnote audit cannot record.
+  rules_dt <- data.table::data.table(
+    column_source = c("footnotes", "footnotes"),
+    value_source_raw = c("estimated value ", NA_character_),
+    value_source = c("estimated value", NA_character_),
+    column_target = c("unit", "unit"),
+    value_target_raw = c(NA_character_, NA_character_),
+    value_target = c("kilogram", "tonne")
+  )
+
+  testthat::expect_warning(
+    validate_canonical_rules(
+      rules_dt = rules_dt,
+      dataset_dt = dataset_dt,
+      rule_file_id = "clean_footnotes.xlsx",
+      stage_name = "clean"
+    ),
+    "audit-invisible target updates: \\[1, 2\\]"
+  )
+})
+
+testthat::test_that("validate_canonical_rules stays silent for audited footnote rule shapes", {
+  dataset_dt <- data.table::data.table(
+    unit = "kg",
+    footnotes = "estimated value"
+  )
+
+  # removal, rewrite, self-target, and whitespace-padded replacement all change
+  # the footnote text (or target footnotes itself), so their effects are
+  # audit-visible and must not warn.
+  rules_dt <- data.table::data.table(
+    column_source = c("footnotes", "footnotes", "footnotes", "footnotes"),
+    value_source_raw = c(
+      "removal note",
+      "rewrite note",
+      "preserved footnote note",
+      "padded note"
+    ),
+    value_source = c(
+      NA_character_,
+      "rewrite note (rev)",
+      "preserved footnote note",
+      "padded note "
+    ),
+    column_target = c("unit", "unit", "footnotes", "unit"),
+    value_target_raw = c(
+      NA_character_,
+      NA_character_,
+      NA_character_,
+      NA_character_
+    ),
+    value_target = c("kilogram", "kilogram", NA_character_, "kilogram")
+  )
+
+  testthat::expect_warning(
+    validate_canonical_rules(
+      rules_dt = rules_dt,
+      dataset_dt = dataset_dt,
+      rule_file_id = "clean_footnotes.xlsx",
+      stage_name = "clean"
+    ),
+    regexp = NA
+  )
+})
+
 
 # --- encode / decode target rule values --------------------------------------
 
@@ -1327,6 +1426,39 @@ testthat::test_that("apply_footnote_rules does not audit normalize-equivalent no
 
   testthat::expect_equal(result$data$footnotes[[1]], "__australian mandate__")
   testthat::expect_equal(nrow(result$audit), 0L)
+})
+
+testthat::test_that("apply_footnote_rules target updates from text-preserving rules bypass the audit", {
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    unit = "kg",
+    footnotes = "estimated value"
+  )
+
+  footnote_rules <- data.table::data.table(
+    column_source = "footnotes",
+    value_source_raw = "estimated value",
+    value_source = "estimated value",
+    column_target = "unit",
+    value_target_raw = NA_character_,
+    value_target = "kilogram"
+  )
+
+  result <- apply_footnote_rules(
+    dataset_dt = dataset_dt,
+    footnote_rules = footnote_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  # The target update applies and the footnote text is preserved, so the audit
+  # stays empty -- the latent gap validate_canonical_rules() warns about.
+  testthat::expect_equal(result$data$unit[[1]], "kilogram")
+  testthat::expect_equal(result$data$footnotes[[1]], "estimated value")
+  testthat::expect_equal(nrow(result$audit), 0L)
+  testthat::expect_equal(result$changed_value_count, 1L)
 })
 
 testthat::test_that("apply_rule_payload routes footnote rules to apply_footnote_rules", {

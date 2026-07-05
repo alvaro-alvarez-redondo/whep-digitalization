@@ -248,7 +248,11 @@ check_type_compatibility <- function(
 
 #' @title Validate canonical rules
 #' @description Validates schema completeness, dataset-column presence, rule-key
-#' uniqueness, conflict-free mappings, and type compatibility.
+#' uniqueness, conflict-free mappings, and type compatibility. Warns when a
+#' footnote-source rule preserves the matched footnote text while targeting a
+#' non-footnote column, because `apply_footnote_rules()` derives its audit from
+#' footnote-text changes only and applies such target updates without an audit
+#' row.
 #' @param rules_dt Canonical rule table.
 #' @param dataset_dt Dataset to mutate.
 #' @param rule_file_id Character scalar rule file identifier.
@@ -444,6 +448,41 @@ validate_canonical_rules <- function(
       ),
       by = column_source
     ]
+  }
+
+  # Footnote-source rules route to apply_footnote_rules(), whose audit records
+  # footnote-text changes only. A rule that preserves the matched footnote text
+  # -- its stage source value reproduces the matched token verbatim on an
+  # exact-case match, or it keeps an NA footnote NA -- while targeting another
+  # column applies its target update with no audit row. Warn instead of abort:
+  # the rule is functionally valid, only its audit visibility is degraded.
+  # (Case-normalized matches where the source value equals the dataset token
+  # but not value_source_raw are data-dependent and not statically detectable.)
+  footnote_target_mask <- rules_dt$column_source == "footnotes" &
+    rules_dt$column_target != "footnotes"
+
+  if (any(footnote_target_mask)) {
+    source_result_values <- as.character(rules_dt[[source_value_column]])
+    source_raw_values <- as.character(rules_dt$value_source_raw)
+    source_result_is_blank <- is.na(source_result_values) |
+      trimws(source_result_values) == ""
+    preserves_matched_text <- !source_result_is_blank &
+      !is.na(source_raw_values) &
+      source_result_values == trimws(source_raw_values)
+    preserves_na_footnote <- source_result_is_blank & is.na(source_raw_values)
+    audit_invisible_mask <- footnote_target_mask &
+      (preserves_matched_text | preserves_na_footnote)
+
+    if (any(audit_invisible_mask)) {
+      audit_invisible_rows <- which(audit_invisible_mask)
+      cli::cli_warn(c(
+        "Footnote rules with audit-invisible target updates in {.file {rule_file_id}}.",
+        "!" = "These rules preserve the matched footnote text, so their {.field column_target} updates are applied without an audit row (the footnote audit records footnote-text changes only).",
+        "i" = "Rule file location: {.path {rule_file_path}}",
+        "i" = "stage: {validated_stage_name}",
+        "i" = "Rule rows with audit-invisible target updates: [{paste(audit_invisible_rows, collapse = ', ')}]"
+      ))
+    }
   }
 
   return(invisible(TRUE))
