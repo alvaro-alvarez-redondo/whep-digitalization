@@ -13,8 +13,10 @@
   vectorized validation −9.3s, both measured isolated same-process).
 - **Postpro (120k subset):** ~11.3s cached-import min-of-5 (full 357k ≈ 42s).
 - **Export:** ~0.5s on the 120k subset. Unchanged.
-- **Last session:** jul4 (branch `autocode/jul4`; carries the jun29 progress-bars
-  work as its first commit)
+- **Last session:** jul4-b / jul5 merge (branch `claude/nervous-vaughan-58e3e8` =
+  `autocode/jul4` final + the NA-footnote audit fix `1d9aea6` + quality sweep).
+  Audit counts on 4 clean-audit NA-source rows are now the CORRECTED (halved)
+  values; verify goldens in this branch's worktree are re-captured accordingly.
 - **Measurement noise:** the official `PIPELINE_SECONDS` metric has a ~10% run-to-run
   floor (cold first rep + worker spawn + Nextcloud-FS contention + antivirus scans of
   fresh files; postpro alone swings ±7% with no code change) **plus dataset drift**.
@@ -23,6 +25,23 @@
   (`WHEP_BENCH_CACHE_IMPORT=1`, min of ≥5 reps) gated by the golden byte-identical
   verifier. A single official run can read as a false regression — never
   keep/discard on one reading.
+
+## Post-merge checklist (after this branch lands on main)
+
+Adopted from the jul4 session's uncommitted draft in the main worktree; the
+audit fix it anticipated is already merged in this branch.
+
+1. Delete `data/.autocode_bench/raw_dt.rds` and rebuild (`WHEP_BENCH_CACHE_IMPORT=1`)
+   — the pinned snapshot is 360,798 rows; the live dataset is 601k+ and growing.
+2. Re-capture all perf verify goldens on merged main (`perf/_verify.R reset`, etc.) —
+   the audit fix intentionally changes 4 clean-audit rows, so any golden captured
+   before it false-fails on diagnostics. (This branch's own worktree goldens are
+   already post-fix.)
+3. Re-baseline `PIPELINE_SECONDS` before the next session; numbers in this file
+   predate the dataset growth.
+4. Dismiss the stale task_4dc58c64 chip (NA-dedup fix — superseded by `1d9aea6`);
+   the footnote-rule validation guard (task_ad8311dd) and checkpoint staleness
+   (task_6fd14092) sessions remain open.
 
 ## Optimization boundaries
 
