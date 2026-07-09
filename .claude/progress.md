@@ -2,7 +2,7 @@
 
 ## Current state
 
-- **Tests:** 1007 passed / 0 failed (100%)
+- **Tests:** 1055 passed / 0 failed (100%) — jul4 added test-fused-import-and-validation.R + test-state-records.R pinning the rewrite contracts
 - **Dataset is GROWING (jul4):** the import folder went 729 → 1360 workbooks
   (601,766 long rows) with files still syncing in via Nextcloud **mid-session**.
   Cross-run comparisons of the official metric are confounded by data drift —
