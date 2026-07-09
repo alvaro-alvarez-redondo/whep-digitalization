@@ -24,6 +24,15 @@
   verifier. A single official run can read as a false regression — never
   keep/discard on one reading.
 
+## Post-merge checklist (after PR #127 and the audit-fix branch land on main)
+
+1. Delete `data/.autocode_bench/raw_dt.rds` and rebuild (`WHEP_BENCH_CACHE_IMPORT=1`)
+   — the pinned snapshot is 360,798 rows; the live dataset is 601k+ and growing.
+2. Re-capture all perf verify goldens on the merged main — the audit fix
+   intentionally changes 4 clean-audit rows, so pre-merge goldens false-fail.
+3. Re-baseline `PIPELINE_SECONDS` before the next session; numbers in this file
+   predate the dataset growth.
+
 ## Optimization boundaries
 
 Hard limits discovered through profiling and experimentation. Future sessions should
