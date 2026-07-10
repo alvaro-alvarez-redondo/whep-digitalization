@@ -8,7 +8,7 @@ For the architecture and data flow, see [architecture.md](architecture.md). For 
 constants and option flags these functions read, see
 [constants-and-options.md](constants-and-options.md).
 
-> 62 source `.R` files + 34 test files. This index lists durable function names and
+> 72 source `.R` files + 36 test files. This index lists durable function names and
 > responsibilities; it intentionally omits line numbers (they rot). Re-derive a stale
 > entry by reading the named file.
 
@@ -138,6 +138,17 @@ Rule files (clean/harmonize workbooks/CSVs) use six canonical columns from
 `column_source`, `value_source_raw`, `value_source`, `column_target`, `value_target_raw`,
 `value_target`.
 
+Files (all glob-sourced together by `source_postpro_scripts()`, so load order within the
+stage is immaterial): `23-schema-validation.R` (coerce/validate rules, `build_conditional_rule_dictionary`,
+`ensure_rule_referenced_columns`) · `23-matching-strategy.R` (value/key encoders, strategy
+config resolvers) · `23-matching-values.R` (`match_rule_target_condition_values`,
+`concatenate_existing_and_incoming_values`, `count_elementwise_value_changes`) ·
+`23-target-apply.R` (`apply_target_updates_with_strategy`) · `23-conditional-group.R`
+(`prepare_conditional_rule_group`, `apply_conditional_rule_group`) · `23-footnote-rules.R`
+(`apply_footnote_rules`) · `23-payload-application.R` (`prepare_rule_payload_execution_plan`,
+`apply_rule_payload`). The last five were split from three >500-line files under the
+refactoring guideline; splits are pure definition moves (behavior-identical).
+
 | Function | Purpose | |
 |---|---|---|
 | `validate_canonical_rules(rules_dt, dataset_dt, ...)` | Validate a rule file against the dataset | PUB |
@@ -145,6 +156,12 @@ Rule files (clean/harmonize workbooks/CSVs) use six canonical columns from
 | `coerce_rule_schema` / `encode_rule_match_key` / `match_rule_target_condition_values` / `apply_target_updates_with_strategy` / `build_conditional_rule_dictionary` / `apply_footnote_rules` | Wildcard `__ANY__`, match-key normalization, `last_rule_wins`/`concatenate` strategies | int |
 
 ### `24-standardize_units/` (unit conversion)
+
+Files: `24-standardize-engine.R` (`apply_standardize_rules`) · `24-standardize-aggregation.R`
+(duplicate-group aggregation + `attach_standardize_diagnostics`, split from the engine under
+the >500-line guideline) · `24-standardize-orchestration.R` (`run_standardize_units_layer_batch`)
+· `24-rules-setup.R` (load/prepare unit rules).
+
 | Function | Purpose | |
 |---|---|---|
 | `apply_standardize_rules(mapped_dt, prepared_rules_dt, unit_column, value_column, commodity_column)` | **Contract:** returns `list(data, matched_count, unmatched_count, matched_rule_counts)` — `matched_rule_counts` is a `data.table` | PUB |
@@ -153,6 +170,14 @@ Rule files (clean/harmonize workbooks/CSVs) use six canonical columns from
 | `aggregate_standardized_rows` / `extract_aggregated_rows` / `attach_standardize_diagnostics` / `build_standardize_layer_audit` | Aggregation + audit | int |
 
 ### `25-postpro_diagnostics/`
+
+Files: `25-preflight.R` · `25-diagnostics-output.R` (`build_postpro_diagnostics`,
+`persist_postpro_audit`) · `25-rule-summaries.R` (clean/harmonize summaries:
+`summarize_stage_rules`, `build_stage_rule_catalog_from_payloads`, `build_unmatched_rule_summary`)
+· `25-standardize-summaries.R` (standardize summaries: `build_standardize_rule_catalog`,
+`summarize_standardize_rules`, `build_unmatched_standardize_rule_summary`, split from
+`25-rule-summaries.R` under the >500-line guideline).
+
 | Function | Purpose | |
 |---|---|---|
 | `assert_postpro_preflight(preflight_result)` | Abort if preflight checks failed | PUB |
