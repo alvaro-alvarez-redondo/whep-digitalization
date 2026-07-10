@@ -438,105 +438,6 @@ testthat::test_that("validate_canonical_rules reports duplicate key location and
   testthat::expect_match(error_message, "rows=\\[1, 2, 3\\]")
 })
 
-testthat::test_that("validate_canonical_rules warns on audit-invisible footnote target updates", {
-  dataset_dt <- data.table::data.table(
-    unit = "kg",
-    footnotes = "estimated value; other note"
-  )
-
-  rules_dt <- data.table::data.table(
-    column_source = c("footnotes", "footnotes"),
-    value_source_raw = c("other note", "estimated value"),
-    value_source = c(NA_character_, "estimated value"),
-    column_target = c("unit", "unit"),
-    value_target_raw = c(NA_character_, NA_character_),
-    value_target = c("tonne", "kilogram")
-  )
-
-  testthat::expect_warning(
-    validate_canonical_rules(
-      rules_dt = rules_dt,
-      dataset_dt = dataset_dt,
-      rule_file_id = "clean_footnotes.xlsx",
-      stage_name = "clean"
-    ),
-    "audit-invisible target updates: \\[2\\]"
-  )
-})
-
-testthat::test_that("validate_canonical_rules warns on trimmed-raw and NA-preserving footnote rules", {
-  dataset_dt <- data.table::data.table(
-    unit = "kg",
-    footnotes = "estimated value"
-  )
-
-  # row 1: replacement reproduces the trimmed matched token (raw has trailing
-  # whitespace); row 2: rule matches NA footnotes and keeps them NA. Both apply
-  # target updates that the footnote audit cannot record.
-  rules_dt <- data.table::data.table(
-    column_source = c("footnotes", "footnotes"),
-    value_source_raw = c("estimated value ", NA_character_),
-    value_source = c("estimated value", NA_character_),
-    column_target = c("unit", "unit"),
-    value_target_raw = c(NA_character_, NA_character_),
-    value_target = c("kilogram", "tonne")
-  )
-
-  testthat::expect_warning(
-    validate_canonical_rules(
-      rules_dt = rules_dt,
-      dataset_dt = dataset_dt,
-      rule_file_id = "clean_footnotes.xlsx",
-      stage_name = "clean"
-    ),
-    "audit-invisible target updates: \\[1, 2\\]"
-  )
-})
-
-testthat::test_that("validate_canonical_rules stays silent for audited footnote rule shapes", {
-  dataset_dt <- data.table::data.table(
-    unit = "kg",
-    footnotes = "estimated value"
-  )
-
-  # removal, rewrite, self-target, and whitespace-padded replacement all change
-  # the footnote text (or target footnotes itself), so their effects are
-  # audit-visible and must not warn.
-  rules_dt <- data.table::data.table(
-    column_source = c("footnotes", "footnotes", "footnotes", "footnotes"),
-    value_source_raw = c(
-      "removal note",
-      "rewrite note",
-      "preserved footnote note",
-      "padded note"
-    ),
-    value_source = c(
-      NA_character_,
-      "rewrite note (rev)",
-      "preserved footnote note",
-      "padded note "
-    ),
-    column_target = c("unit", "unit", "footnotes", "unit"),
-    value_target_raw = c(
-      NA_character_,
-      NA_character_,
-      NA_character_,
-      NA_character_
-    ),
-    value_target = c("kilogram", "kilogram", NA_character_, "kilogram")
-  )
-
-  testthat::expect_warning(
-    validate_canonical_rules(
-      rules_dt = rules_dt,
-      dataset_dt = dataset_dt,
-      rule_file_id = "clean_footnotes.xlsx",
-      stage_name = "clean"
-    ),
-    regexp = NA
-  )
-})
-
 
 # --- encode / decode target rule values --------------------------------------
 
@@ -743,6 +644,40 @@ testthat::test_that("apply_conditional_rule_group does not audit normalize-equiv
 
   testthat::expect_equal(result$data$footnotes[[1]], "__australian mandate__")
   testthat::expect_equal(nrow(result$audit), 0L)
+})
+
+testthat::test_that("apply_conditional_rule_group audits only effectively changed matched rows", {
+  dataset_dt <- data.table::data.table(
+    commodity = c("Wheat", "Rice"),
+    unit = c("kg", "kg")
+  )
+
+  # no value_source column: a present column with NA cells would clear the
+  # matched source values, making every matched row an effective change
+  group_rules <- data.table::data.table(
+    column_source = c("commodity", "commodity"),
+    value_source_raw = c("Wheat", "Rice"),
+    column_target = c("unit", "unit"),
+    value_target_raw = c("kg", "kg"),
+    value_target = c("kg", "kilogram")
+  )
+
+  result <- apply_conditional_rule_group(
+    dataset_dt = dataset_dt,
+    group_rules = group_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  # rule 1 matches row 1 but rewrites unit to its current value; only rule 2
+  # produces an effective change, so only rule 2 is audited.
+  testthat::expect_equal(result$data$unit[[1]], "kg")
+  testthat::expect_equal(result$data$unit[[2]], "kilogram")
+  testthat::expect_equal(nrow(result$audit), 1L)
+  testthat::expect_equal(result$audit$value_source_raw[[1]], "Rice")
+  testthat::expect_equal(result$audit$affected_rows[[1]], 1L)
 })
 
 
@@ -1428,7 +1363,7 @@ testthat::test_that("apply_footnote_rules does not audit normalize-equivalent no
   testthat::expect_equal(nrow(result$audit), 0L)
 })
 
-testthat::test_that("apply_footnote_rules target updates from text-preserving rules bypass the audit", {
+testthat::test_that("apply_footnote_rules audits target updates from text-preserving rules", {
   dataset_dt <- data.table::data.table(
     commodity = "Wheat",
     unit = "kg",
@@ -1453,11 +1388,73 @@ testthat::test_that("apply_footnote_rules target updates from text-preserving ru
     execution_timestamp_utc = "2026-01-01T00:00:00Z"
   )
 
-  # The target update applies and the footnote text is preserved, so the audit
-  # stays empty -- the latent gap validate_canonical_rules() warns about.
+  # The footnote text is preserved, but the unit update is an effective change
+  # and therefore audited.
   testthat::expect_equal(result$data$unit[[1]], "kilogram")
   testthat::expect_equal(result$data$footnotes[[1]], "estimated value")
-  testthat::expect_equal(nrow(result$audit), 0L)
+  testthat::expect_equal(nrow(result$audit), 1L)
+  testthat::expect_equal(result$audit$column_target[[1]], "unit")
+  testthat::expect_equal(result$audit$affected_rows[[1]], 1L)
+  testthat::expect_equal(result$changed_value_count, 1L)
+})
+
+testthat::test_that("apply_footnote_rules audit counts distinct rows for duplicate tokens", {
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    footnotes = "dup note; dup note"
+  )
+
+  footnote_rules <- data.table::data.table(
+    column_source = "footnotes",
+    value_source_raw = "dup note",
+    value_source = "new note",
+    column_target = "footnotes",
+    value_target_raw = NA_character_,
+    value_target = NA_character_
+  )
+
+  result <- apply_footnote_rules(
+    dataset_dt = dataset_dt,
+    footnote_rules = footnote_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  # both tokens change but belong to one dataset row
+  testthat::expect_equal(result$data$footnotes[[1]], "new note; new note")
+  testthat::expect_equal(nrow(result$audit), 1L)
+  testthat::expect_equal(result$audit$affected_rows[[1]], 1L)
+})
+
+testthat::test_that("apply_footnote_rules counts footnote text changes in changed_value_count", {
+  dataset_dt <- data.table::data.table(
+    commodity = c("Wheat", "Rice"),
+    footnotes = c("old note", "keep note")
+  )
+
+  footnote_rules <- data.table::data.table(
+    column_source = "footnotes",
+    value_source_raw = "old note",
+    value_source = "new note",
+    column_target = "footnotes",
+    value_target_raw = NA_character_,
+    value_target = NA_character_
+  )
+
+  result <- apply_footnote_rules(
+    dataset_dt = dataset_dt,
+    footnote_rules = footnote_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  # the reconstructed footnotes column is compared against a real copy of the
+  # pre-application values (sub-assignment mutates the column in place)
+  testthat::expect_equal(result$data$footnotes[[1]], "new note")
   testthat::expect_equal(result$changed_value_count, 1L)
 })
 

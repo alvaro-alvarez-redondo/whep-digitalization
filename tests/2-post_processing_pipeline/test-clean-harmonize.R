@@ -364,21 +364,54 @@ testthat::test_that("harmonize multi-pass converges chained footnote and unit ru
     stringsAsFactors = FALSE
   )
 
-  # rule 1 preserves the footnote text while targeting unit -- the chained
-  # trigger idiom validate_canonical_rules() flags as audit-invisible.
-  testthat::expect_warning(
-    result <- run_harmonize_layer_batch(
-      dataset_dt = input_dt,
-      config = config,
-      dataset_name = "demo"
-    ),
-    "audit-invisible target updates"
+  result <- run_harmonize_layer_batch(
+    dataset_dt = input_dt,
+    config = config,
+    dataset_name = "demo"
   )
 
   diagnostics <- attr(result, "layer_diagnostics")
 
   testthat::expect_equal(result$unit[[1]], "count")
   testthat::expect_true(is.list(diagnostics$multi_pass))
+  testthat::expect_true(diagnostics$multi_pass$converged)
+  testthat::expect_true(diagnostics$multi_pass$passes_executed >= 2L)
+})
+
+testthat::test_that("clean multi-pass converges chained footnote rewrites", {
+  config <- build_test_config()
+
+  clean_rules <- data.frame(
+    column_source = c("footnotes", "footnotes"),
+    value_source_raw = c("chain start", "chain mid"),
+    value_source = c("chain mid", "chain end"),
+    column_target = c("footnotes", "footnotes"),
+    value_target_raw = c("", ""),
+    value_target = c("", ""),
+    stringsAsFactors = FALSE
+  )
+  create_clean_rule_file(
+    config = config,
+    rules_df = clean_rules,
+    filename = "clean_rules_footnote_chain.csv"
+  )
+
+  input_dt <- data.frame(
+    footnotes = "chain start",
+    stringsAsFactors = FALSE
+  )
+
+  result <- run_cleaning_layer_batch(
+    dataset_dt = input_dt,
+    config = config,
+    dataset_name = "demo"
+  )
+
+  diagnostics <- attr(result, "layer_diagnostics")
+
+  # pass 1 rewrites start -> mid, pass 2 rewrites mid -> end; footnote-text
+  # changes must count as effective changes or the loop stops after pass 1.
+  testthat::expect_equal(result$footnotes[[1]], "chain end")
   testthat::expect_true(diagnostics$multi_pass$converged)
   testthat::expect_true(diagnostics$multi_pass$passes_executed >= 2L)
 })
@@ -810,22 +843,19 @@ testthat::test_that("clean footnote matched removal dominates overlapping unmatc
     stringsAsFactors = FALSE
   )
 
-  # rule 1 ("oil" -> "oil" with a commodity target) is the text-preserving
-  # shape validate_canonical_rules() flags as audit-invisible.
-  testthat::expect_warning(
-    result <- run_cleaning_layer_batch(
-      dataset_dt = input_dt,
-      config = config,
-      dataset_name = "demo"
-    ),
-    "audit-invisible target updates"
+  result <- run_cleaning_layer_batch(
+    dataset_dt = input_dt,
+    config = config,
+    dataset_name = "demo"
   )
 
   diagnostics <- attr(result, "layer_diagnostics")
 
   testthat::expect_true(is.na(result$footnotes[[1]]))
   testthat::expect_true(diagnostics$multi_pass$converged)
-  testthat::expect_identical(diagnostics$multi_pass$passes_executed, 1L)
+  # pass 1 removes the footnote (an effective change), pass 2 verifies
+  # convergence with zero further changes
+  testthat::expect_identical(diagnostics$multi_pass$passes_executed, 2L)
 })
 
 testthat::test_that("clean stage persists runtime cache artifact deterministically", {

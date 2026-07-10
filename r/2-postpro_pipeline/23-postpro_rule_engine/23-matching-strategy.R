@@ -467,22 +467,19 @@ concatenate_existing_and_incoming_values <- function(
   return(merged_values)
 }
 
-#' @title Count element-wise value changes
-#' @description Counts deterministic value changes between two same-length
-#' vectors while preserving missing-value semantics.
+#' @title Compute element-wise value-change mask
+#' @description Marks positions whose value effectively changed between two
+#' same-length vectors while preserving missing-value semantics: NA-ness
+#' flipped, or both values present and unequal as character.
 #' @param before_values Atomic vector of values before mutation.
 #' @param after_values Atomic vector of values after mutation.
-#' @return Integer scalar count of changed elements.
-count_elementwise_value_changes <- function(before_values, after_values) {
+#' @return Logical vector the same length as the inputs.
+elementwise_value_change_mask <- function(before_values, after_values) {
   checkmate::assert_atomic(before_values, any.missing = TRUE)
   checkmate::assert_atomic(after_values, any.missing = TRUE)
 
   if (length(before_values) != length(after_values)) {
     cli::cli_abort("before and after vectors must have equal length")
-  }
-
-  if (length(before_values) == 0L) {
-    return(0L)
   }
 
   before_na <- is.na(before_values)
@@ -497,5 +494,18 @@ count_elementwise_value_changes <- function(before_values, after_values) {
         as.character(after_values[comparable_mask])
   }
 
-  return(as.integer(sum(value_changed)))
+  return(value_changed)
+}
+
+#' @title Count element-wise value changes
+#' @description Counts deterministic value changes between two same-length
+#' vectors while preserving missing-value semantics.
+#' @param before_values Atomic vector of values before mutation.
+#' @param after_values Atomic vector of values after mutation.
+#' @return Integer scalar count of changed elements.
+count_elementwise_value_changes <- function(before_values, after_values) {
+  return(as.integer(sum(elementwise_value_change_mask(
+    before_values = before_values,
+    after_values = after_values
+  ))))
 }

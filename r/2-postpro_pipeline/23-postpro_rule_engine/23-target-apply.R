@@ -452,8 +452,10 @@ apply_conditional_rule_group <- function(
     strategy_config = get_target_update_strategy_config()
   )
 
-  source_values_pre_update <- dataset_dt[[source_column]]
-  target_values_pre_update <- dataset_dt[[target_column]]
+  # Sub-assignment mutates columns in place, so both pre-update captures must
+  # be real copies for the effective-change audit comparison below.
+  source_values_pre_update <- data.table::copy(dataset_dt[[source_column]])
+  target_values_pre_update <- data.table::copy(dataset_dt[[target_column]])
 
   join_input <- data.table::data.table(
     row_id = seq_len(nrow(dataset_dt)),
@@ -542,10 +544,20 @@ apply_conditional_rule_group <- function(
     target_changed_value_count <- update_result$changed_value_count
   }
 
-  audit_mask <- if (source_changed_value_count + target_changed_value_count == 0L) {
-    rep(FALSE, length(matched_row_mask))
-  } else {
-    matched_row_mask
+  # Audit effective changes: a matched row is audited only when applying this
+  # group actually changed its source or target value, so affected_rows counts
+  # effectively changed rows rather than matched rows.
+  audit_mask <- rep(FALSE, length(matched_row_mask))
+  if (source_changed_value_count + target_changed_value_count > 0L) {
+    row_changed_mask <- elementwise_value_change_mask(
+      before_values = source_values_pre_update,
+      after_values = dataset_dt[[source_column]]
+    ) |
+      elementwise_value_change_mask(
+        before_values = target_values_pre_update,
+        after_values = dataset_dt[[target_column]]
+      )
+    audit_mask <- matched_row_mask & row_changed_mask[joined_dt$row_id]
   }
 
   matched_counts <- joined_dt[

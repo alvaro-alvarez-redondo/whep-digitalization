@@ -2,7 +2,9 @@
 #' Splits semicolon-delimited footnotes into long format, matches individual
 #' footnotes against rules, applies replacements and removals, updates target
 #' columns from matched footnotes, and reconstructs the footnotes column
-#' preserving original order.
+#' preserving original order. Audit rows record effective changes only --
+#' footnote-text changes and effective target-column updates -- counting
+#' distinct dataset rows per rule.
 #' @param dataset_dt `data.table` to mutate.
 #' @param footnote_rules `data.frame`/`data.table` of rules where
 #'   `column_source == "footnotes"`.
@@ -47,7 +49,9 @@ apply_footnote_rules <- function(
     dataset_dt[, footnotes := NA_character_]
   }
 
-  footnote_values_before <- dataset_dt$footnotes
+  # The footnote reconstruction sub-assigns the column in place, so the
+  # before-values must be a real copy for the effective-change count.
+  footnote_values_before <- data.table::copy(dataset_dt$footnotes)
 
   # --- step 1: assign row identifiers ----------------------------------------
   dataset_dt[, row_id := .I]
@@ -201,11 +205,15 @@ apply_footnote_rules <- function(
   ]
   overwrite_event_tables <- list()
   total_target_changed_value_count <- 0L
+  target_changed_masks <- list()
 
   if (nrow(target_updates) > 0L) {
     target_columns <- unique(target_updates$column_target)
 
     for (tc in target_columns) {
+      # Strategy application sub-assigns the target column in place, so the
+      # before-values must be a real copy for the effective-change audit.
+      target_values_before <- data.table::copy(dataset_dt[[tc]])
       update_result <- apply_target_updates_with_strategy(
         dataset_dt = dataset_dt,
         target_updates = target_updates[column_target == tc],
@@ -218,6 +226,11 @@ apply_footnote_rules <- function(
         execution_stage = validated_stage_name,
         rule_file_identifier = rule_file_id,
         source_column = "footnotes"
+      )
+
+      target_changed_masks[[tc]] <- elementwise_value_change_mask(
+        before_values = target_values_before,
+        after_values = dataset_dt[[tc]]
       )
 
       if (nrow(update_result$overwrite_events) > 0L) {
@@ -346,15 +359,36 @@ apply_footnote_rules <- function(
   )
 
   # --- step 9: generate audit records ----------------------------------------
-  noop_mask <- matched_mask &
-    ((!is.na(joined$footnote) & !is.na(joined$footnote_final) &
-      joined$footnote == joined$footnote_final) |
-     (is.na(joined$footnote) & is.na(joined$footnote_final)))
-  audit_source <- joined[matched_mask & !noop_mask]
+  # Audit effective changes: a matched candidate is audited when its token's
+  # resolved footnote text changed, or when its rule's non-footnote target
+  # column effectively changed on that row in step 6. affected_rows counts
+  # distinct dataset rows per rule key.
+  token_resolution[, token_changed := elementwise_value_change_mask(
+    before_values = footnote,
+    after_values = footnote_final
+  )]
+  joined[
+    token_resolution,
+    token_changed := i.token_changed,
+    on = .(row_id, footnote_index)
+  ]
+
+  target_effective_mask <- rep(FALSE, nrow(joined))
+  for (tc in names(target_changed_masks)) {
+    target_column_mask <- matched_mask & joined$column_target == tc
+    if (any(target_column_mask)) {
+      target_effective_mask[target_column_mask] <-
+        target_changed_masks[[tc]][joined$row_id[target_column_mask]]
+    }
+  }
+
+  audit_source <- joined[
+    matched_mask & (token_changed | target_effective_mask)
+  ]
 
   if (nrow(audit_source) > 0L) {
     source_audit <- audit_source[,
-      .(affected_rows = .N),
+      .(affected_rows = data.table::uniqueN(row_id)),
       by = .(
         value_source_raw,
         value_source_result,

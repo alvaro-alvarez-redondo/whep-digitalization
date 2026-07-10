@@ -72,9 +72,12 @@ plan, restored on exit. ~4 workers is sweet spot (~2.1×); 8 < 4 in benchmarks.
 - `country` renamed to `polity` during import header normalization.
 - Unit prefixes: leading numeric multiplier (e.g. `"1000 head"`) folded into value.
 - Multi-pass cycle policy defaults to `"warn"`, max 10 passes, early convergence stop.
-- Footnote-rule audit records footnote-text changes only. `validate_canonical_rules()`
-  warns when a footnote rule preserves its matched text but targets another column —
-  the target update applies with no audit row.
+- Rule-engine audits record **effective changes**: `affected_rows` counts matched
+  dataset rows whose source/target/footnote value actually changed; matched no-op
+  rows emit no audit rows.
+- data.table sub-assignment (`set(i=)`, join-`:=`) mutates column vectors **in
+  place** — full-column before-captures must use `data.table::copy()`, or
+  before/after comparisons see identical vectors.
 
 ## Scratch files
 
