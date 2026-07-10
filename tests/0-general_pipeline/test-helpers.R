@@ -460,13 +460,11 @@ testthat::test_that("load_pipeline_checkpoint returns NULL when disabled", {
 testthat::test_that("checkpoint round-trips data when enabled", {
   withr::local_options(whep.checkpointing.enabled = TRUE)
 
-  config <- list(paths = list(data = list(root = tempdir())))
-  test_data <- list(value = 42, name = "test")
-
-  checkpoint_dir <- fs::path(here::here(), "data", ".checkpoints")
-  withr::defer(
-    if (fs::dir_exists(checkpoint_dir)) fs::dir_delete(checkpoint_dir)
+  config <- list(
+    project_root = build_temp_dir("whep-ckpt-"),
+    paths = list(data = list(root = tempdir()))
   )
+  test_data <- list(value = 42, name = "test")
 
   save_path <- save_pipeline_checkpoint(
     result = test_data,
@@ -476,6 +474,9 @@ testthat::test_that("checkpoint round-trips data when enabled", {
 
   testthat::expect_true(is.character(save_path))
   testthat::expect_true(file.exists(save_path))
+  testthat::expect_true(
+    fs::path_has_parent(save_path, config$project_root)
+  )
 
   loaded <- load_pipeline_checkpoint(
     checkpoint_name = "round_trip_test",
@@ -488,7 +489,10 @@ testthat::test_that("checkpoint round-trips data when enabled", {
 testthat::test_that("load_pipeline_checkpoint returns NULL for missing checkpoint", {
   withr::local_options(whep.checkpointing.enabled = TRUE)
 
-  config <- list(paths = list(data = list(root = tempdir())))
+  config <- list(
+    project_root = build_temp_dir("whep-ckpt-"),
+    paths = list(data = list(root = tempdir()))
+  )
   result <- load_pipeline_checkpoint(
     checkpoint_name = "nonexistent_checkpoint",
     config = config
@@ -500,8 +504,11 @@ testthat::test_that("load_pipeline_checkpoint returns NULL for missing checkpoin
 testthat::test_that("clear_pipeline_checkpoints removes directory", {
   withr::local_options(whep.checkpointing.enabled = TRUE)
 
-  config <- list(paths = list(data = list(root = tempdir())))
-  checkpoint_dir <- fs::path(here::here(), "data", ".checkpoints")
+  config <- list(
+    project_root = build_temp_dir("whep-ckpt-"),
+    paths = list(data = list(root = tempdir()))
+  )
+  checkpoint_dir <- fs::path(config$project_root, "data", ".checkpoints")
 
   save_pipeline_checkpoint(
     result = list(value = 42),
@@ -514,6 +521,185 @@ testthat::test_that("clear_pipeline_checkpoints removes directory", {
   clear_pipeline_checkpoints(config)
 
   testthat::expect_false(fs::dir_exists(checkpoint_dir))
+})
+
+
+# --- checkpoint fingerprint invalidation --------------------------------------
+
+testthat::test_that("build_checkpoint_fingerprint covers inputs, config, and code", {
+  config <- build_test_config()
+  writeLines("wb1", file.path(config$paths$data$import$raw, "wb1.xlsx"))
+
+  fingerprint <- build_checkpoint_fingerprint("import_pipeline", config)
+
+  testthat::expect_named(fingerprint, c("inputs", "config", "code"))
+  testthat::expect_length(fingerprint$inputs, 1L)
+  testthat::expect_identical(fingerprint$inputs[[1]]$path, "wb1.xlsx")
+  testthat::expect_true(is.numeric(fingerprint$inputs[[1]]$size))
+  testthat::expect_true(is.numeric(fingerprint$inputs[[1]]$mtime))
+  testthat::expect_true(length(fingerprint$code) > 0)
+  testthat::expect_true(all(grepl("::[0-9a-f]{32}$", fingerprint$code)))
+  testthat::expect_false("performance" %in% names(fingerprint$config))
+
+  unregistered <- build_checkpoint_fingerprint("no_such_checkpoint", config)
+
+  testthat::expect_length(unregistered$inputs, 0L)
+  testthat::expect_length(unregistered$code, 0L)
+})
+
+testthat::test_that("checkpoint restores while registered inputs are unchanged", {
+  withr::local_options(whep.checkpointing.enabled = TRUE)
+
+  config <- build_test_config()
+  writeLines("wb1", file.path(config$paths$data$import$raw, "wb1.xlsx"))
+  test_data <- list(data = "import_result")
+
+  save_pipeline_checkpoint(
+    result = test_data,
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  loaded <- load_pipeline_checkpoint(
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  testthat::expect_identical(loaded, test_data)
+})
+
+testthat::test_that("checkpoint invalidates when an input file is added", {
+  withr::local_options(whep.checkpointing.enabled = TRUE)
+
+  config <- build_test_config()
+  writeLines("wb1", file.path(config$paths$data$import$raw, "wb1.xlsx"))
+
+  save_pipeline_checkpoint(
+    result = list(data = "stale"),
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  writeLines("wb2", file.path(config$paths$data$import$raw, "wb2.xlsx"))
+
+  testthat::expect_message(
+    loaded <- load_pipeline_checkpoint(
+      checkpoint_name = "import_pipeline",
+      config = config
+    ),
+    "stale"
+  )
+  testthat::expect_null(loaded)
+})
+
+testthat::test_that("checkpoint invalidates when an input file changes", {
+  withr::local_options(whep.checkpointing.enabled = TRUE)
+
+  config <- build_test_config()
+  input_file <- file.path(config$paths$data$import$raw, "wb1.xlsx")
+  writeLines("wb1", input_file)
+
+  save_pipeline_checkpoint(
+    result = list(data = "stale"),
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  writeLines(c("wb1", "updated rows"), input_file)
+
+  loaded <- load_pipeline_checkpoint(
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  testthat::expect_null(loaded)
+})
+
+testthat::test_that("checkpoint invalidates when config changes", {
+  withr::local_options(whep.checkpointing.enabled = TRUE)
+
+  config <- build_test_config()
+  writeLines("wb1", file.path(config$paths$data$import$raw, "wb1.xlsx"))
+
+  save_pipeline_checkpoint(
+    result = list(data = "stale"),
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  changed_config <- config
+  changed_config$column_order <- rev(config$column_order)
+
+  loaded <- load_pipeline_checkpoint(
+    checkpoint_name = "import_pipeline",
+    config = changed_config
+  )
+
+  testthat::expect_null(loaded)
+})
+
+testthat::test_that("performance-only config changes do not invalidate checkpoints", {
+  withr::local_options(whep.checkpointing.enabled = TRUE)
+
+  config <- build_test_config()
+  writeLines("wb1", file.path(config$paths$data$import$raw, "wb1.xlsx"))
+  test_data <- list(data = "import_result")
+
+  save_pipeline_checkpoint(
+    result = test_data,
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  tuned_config <- config
+  tuned_config$performance <- list(import_parallel_workers = 2L)
+
+  loaded <- load_pipeline_checkpoint(
+    checkpoint_name = "import_pipeline",
+    config = tuned_config
+  )
+
+  testthat::expect_identical(loaded, test_data)
+})
+
+testthat::test_that("legacy unwrapped checkpoint payloads are rebuilt", {
+  withr::local_options(whep.checkpointing.enabled = TRUE)
+
+  config <- build_test_config()
+  checkpoint_path <- file.path(
+    config$project_root, "data", ".checkpoints", "import_pipeline.rds"
+  )
+  dir.create(dirname(checkpoint_path), recursive = TRUE, showWarnings = FALSE)
+  saveRDS(list(data = "legacy_result"), checkpoint_path)
+
+  testthat::expect_message(
+    loaded <- load_pipeline_checkpoint(
+      checkpoint_name = "import_pipeline",
+      config = config
+    ),
+    "format mismatch"
+  )
+  testthat::expect_null(loaded)
+})
+
+testthat::test_that("unreadable checkpoint files are rebuilt with a warning", {
+  withr::local_options(whep.checkpointing.enabled = TRUE)
+
+  config <- build_test_config()
+  checkpoint_path <- file.path(
+    config$project_root, "data", ".checkpoints", "import_pipeline.rds"
+  )
+  dir.create(dirname(checkpoint_path), recursive = TRUE, showWarnings = FALSE)
+  writeLines("not an rds payload", checkpoint_path)
+
+  testthat::expect_warning(
+    loaded <- load_pipeline_checkpoint(
+      checkpoint_name = "import_pipeline",
+      config = config
+    ),
+    "failed to read checkpoint"
+  )
+  testthat::expect_null(loaded)
 })
 
 

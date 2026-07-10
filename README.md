@@ -147,8 +147,12 @@ options(whep.checkpointing.enabled = TRUE)
 
 When enabled:
 - Import results are saved to `data/.checkpoints/import_pipeline.rds`
-- Subsequent runs skip import if a valid checkpoint exists
-- Clear checkpoints: `clear_pipeline_checkpoints(config)`
+- Subsequent runs skip import only while the checkpoint is fresh: the stored
+  fingerprint (raw-import `*.xlsx` listing, config, pipeline code checksums) must
+  match the current state. Added/changed/removed workbooks, config edits, or code
+  changes invalidate the checkpoint and the import rebuilds automatically, logging
+  which component changed
+- Clear checkpoints manually: `clear_pipeline_checkpoints(config)`
 
 ### Constants Caching
 

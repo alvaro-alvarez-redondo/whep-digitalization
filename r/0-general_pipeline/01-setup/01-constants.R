@@ -242,6 +242,29 @@ get_pipeline_constants <- function() {
     checkpoints_dir = ".checkpoints"
   )
 
+  constants$checkpoints <- list(
+    # Payload format marker stored in every checkpoint RDS. Bump when the
+    # payload structure changes; older payloads are discarded on load.
+    payload_format = "whep_checkpoint_v2",
+    # Top-level config fields excluded from the checkpoint fingerprint because
+    # they tune execution without changing pipeline output.
+    config_exclude_fields = "performance",
+    # Per-checkpoint fingerprint sources keyed by checkpoint name.
+    # `input_dir_keys` are nested config keys resolving to input directories
+    # whose recursive file listing (relative path + size + mtime, restricted to
+    # `input_file_glob`) keys the checkpoint. `code_dirs` are project-relative
+    # directories whose .R files are md5-fingerprinted (content-addressed,
+    # mirroring build_stage_payload_cache_key()). Checkpoint names without an
+    # entry are fingerprinted on config alone.
+    fingerprint_sources = list(
+      import_pipeline = list(
+        input_dir_keys = list(c("paths", "data", "import", "raw")),
+        input_file_glob = "*.xlsx",
+        code_dirs = c("r/0-general_pipeline", "r/1-import_pipeline")
+      )
+    )
+  )
+
   constants$tokens <- list(
     commodity_start_index = 7L
   )

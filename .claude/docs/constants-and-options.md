@@ -39,6 +39,11 @@ Cached named list (`.pipeline_constants_cache`, no invalidation). Access: `const
 - `multi_pass$max_passes_by_stage` = `c(clean = 10L, harmonize = 10L)`, `cycle_policy = "warn"`.
 - `runtime_cache$enabled = FALSE`, `schema_validation_cache$enabled = FALSE`.
 
+### Checkpoints (`checkpoints$*`)
+- `payload_format` = `"whep_checkpoint_v2"` — bump to discard all existing checkpoints.
+- `config_exclude_fields` = `"performance"` — config fields ignored by the checkpoint fingerprint.
+- `fingerprint_sources$import_pipeline` — input dir keys (`paths$data$import$raw`, glob `*.xlsx`) and code dirs (`r/0-general_pipeline`, `r/1-import_pipeline`) fingerprinted into the checkpoint; mismatch on load → rebuild.
+
 ### Dependencies
 - `dependencies$required_packages` — checkmate, cli, data.table, dplyr, fs, future, future.apply, here, openxlsx, progressr, purrr, readr, readxl, renv, stringi, stringr, tibble, tidyr, tidyselect, profvis, writexl.
 - `script_names$pipeline_stage_runners` — the four stage-runner filenames (update if adding/renaming a stage runner).
@@ -57,7 +62,7 @@ Cached named list (`.pipeline_constants_cache`, no invalidation). Access: `const
 | `whep.run_export_pipeline.auto` | `TRUE` | Auto-run export stage |
 | `whep.drop_na_values` | `TRUE` | Drop rows with NA value |
 | `whep.progress.enabled` | `TRUE` | Show progressr bar |
-| `whep.checkpointing.enabled` | `FALSE` | Enable RDS checkpoints |
+| `whep.checkpointing.enabled` | `FALSE` | Enable RDS checkpoints (fingerprint-invalidated: input listing + config + code md5s) |
 | `whep.import.parallel_workers` | not set | Import worker count override (`"auto"` default from constant) |
 
 Tests set all `whep.run_*` and `whep.checkpointing.enabled` to `FALSE`.
