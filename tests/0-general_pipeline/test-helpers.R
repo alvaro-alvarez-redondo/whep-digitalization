@@ -617,6 +617,30 @@ testthat::test_that("checkpoint invalidates when an input file changes", {
   testthat::expect_null(loaded)
 })
 
+testthat::test_that("checkpoint invalidates when an input file is removed", {
+  withr::local_options(whep.checkpointing.enabled = TRUE)
+
+  config <- build_test_config()
+  raw_dir <- config$paths$data$import$raw
+  writeLines("wb1", file.path(raw_dir, "wb1.xlsx"))
+  writeLines("wb2", file.path(raw_dir, "wb2.xlsx"))
+
+  save_pipeline_checkpoint(
+    result = list(data = "stale"),
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  file.remove(file.path(raw_dir, "wb2.xlsx"))
+
+  loaded <- load_pipeline_checkpoint(
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  testthat::expect_null(loaded)
+})
+
 testthat::test_that("checkpoint invalidates when output-affecting options change", {
   withr::local_options(
     whep.checkpointing.enabled = TRUE,
