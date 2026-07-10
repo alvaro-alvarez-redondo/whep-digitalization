@@ -141,6 +141,44 @@ perf loop never touched; every finding re-verified by trace before acting):
 - **Measured lean (no action):** import tail at 601k = drop_na 0.0 + validate 1.2
   + consolidate 0.06 + sort 0.23 ≈ 1.5s; postpro audit 0.66 / standardize 0.62 @120k.
 
+**jul4 bug-hunt round 2** (audit stage + rule-engine schema layer — two more adversarial
+sweeps; every finding trace-verified, output-identical fixes gated on the golden):
+- **Fixed (output-identical, golden VERIFY_OK on 120k + full):**
+  - `read_rule_table` now reads rule files with `col_types = "text"` (xlsx) /
+    `col_character()` (csv). Rules match character data, so a numeric-looking rule
+    cell ("007", "1000.0", a date) must keep its exact string; type inference would
+    silently reformat it and break the match. Verified **0 differing cells** on the
+    current 7 rule files, so no current-output change — pure latent hardening.
+  - `build_conditional_rule_dictionary` orders with `method = "radix"`. The within-
+    group order feeds `last_rule_wins`; base `order()` followed the session
+    `LC_COLLATE` (this box: English_UK.utf8), so a rule file could resolve conflicts
+    differently on another locale. `clean_polity.xlsx` (3316 rules) *does* reorder
+    shell→radix, but the golden is byte-identical → no current conflict depends on it;
+    radix makes it portable at zero output change.
+- **Verified clean:** `audit_data_output` does NOT mutate its input by reference
+  (`as.data.table` copies; the `value :=` is a full-column pointer replace on the copy).
+  Stage definitions return the same value columns for clean and harmonize (no wrong-
+  column path). Preflight fails closed on missing unit/value/commodity. Export audit
+  highlight-mapping survives its sort (radix `setorderv`, row indices travel along).
+- **Confirmed-real, spun off (behavior-changing — need sign-off):**
+  - `ensure_rule_referenced_columns` materializes BOTH missing source and target
+    columns as NA before `validate_canonical_rules` runs, so the "column not present"
+    abort is dead: a `column_source` typo with a blank `value_source_raw` keys NA==NA
+    against the phantom column and mass-writes `value_target` across the dataset.
+  - Uniqueness/conflict validation compares RAW rule keys, but application matches on
+    `normalize_string` keys → case/accent/whitespace-variant rules ("Wheat" vs
+    "WHEAT") collide undetected and `last_rule_wins` silently drops one.
+  - Audit `parse_double` coerces `value` before clean/standardize, so the standardize
+    non-numeric abort gate (`24-standardize-engine.R`) is unreachable — a genuinely
+    non-numeric `value` is silently NA'd instead of aborting.
+  - `audit_numeric_string` regex `^[0-9]+(\.[0-9]+)?$` false-positives on scientific
+    notation / signed / leading-dot numbers that the pipeline then coerces fine
+    (audit-report noise only, not data).
+- **Value type, corrected in docs:** data is character through import; `value` is
+  parsed to numeric at `audit_data_output` and stays numeric downstream (every other
+  column stays character). The old "character end-to-end" claim caused a round-1
+  false-positive; architecture.md + conventions.md now state it precisely.
+
 
 Condensed record of past autocode sessions. See `results.tsv` for the full experiment
 ledger with per-commit scores.

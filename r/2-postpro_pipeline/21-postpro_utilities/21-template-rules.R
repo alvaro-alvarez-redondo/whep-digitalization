@@ -88,8 +88,16 @@ read_rule_table <- function(file_path) {
     tolower()
 
   if (identical(file_extension, "csv")) {
+    # Read every rule cell as text: the pipeline matches rules against
+    # character data, so a numeric-looking rule code ("007", "1000.0", a date)
+    # must keep its exact source string. Type inference would silently reformat
+    # it (leading-zero loss, decimal drift) and break the match.
     return(
-      readr::read_csv(file_path, show_col_types = FALSE) |>
+      readr::read_csv(
+        file_path,
+        col_types = readr::cols(.default = readr::col_character()),
+        show_col_types = FALSE
+      ) |>
         data.table::as.data.table()
     )
   }
@@ -103,7 +111,15 @@ read_rule_table <- function(file_path) {
     sheet_names <- readxl::excel_sheets(file_path)
 
     sheet_results <- lapply(sheet_names, function(sheet_name) {
-      sheet_dt <- readxl::read_excel(file_path, sheet = sheet_name) |>
+      # col_types = "text": rules match character data, so keep every rule cell
+      # as its exact source string. Default inference would render a numeric
+      # code cell as a number ("007" -> "7", "1000.0" -> "1000") and silently
+      # break the match against the character dataset.
+      sheet_dt <- readxl::read_excel(
+        file_path,
+        sheet = sheet_name,
+        col_types = "text"
+      ) |>
         data.table::as.data.table()
 
       available_columns <- colnames(sheet_dt)

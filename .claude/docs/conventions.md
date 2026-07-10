@@ -47,7 +47,9 @@ independently. They run *in addition to* per-stage suites.
 ## Determinism
 
 - Identical inputs + options ⇒ identical outputs.
-- All data character-typed end to end; no implicit coercion.
+- Character-typed through import; `value` is parsed to numeric at the post-processing
+  audit step (`audit_data_output`), every other column stays character. No other
+  implicit coercion.
 - Sorting via `sort_pipeline_stage_dt()` for stable row order.
 - Tests: no network/filesystem side effects; use `build_temp_dir()` + in-memory fixtures.
 
