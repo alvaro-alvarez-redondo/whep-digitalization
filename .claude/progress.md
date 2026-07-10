@@ -13,10 +13,17 @@
   vectorized validation −9.3s, both measured isolated same-process).
 - **Postpro (120k subset):** ~11.3s cached-import min-of-5 (full 357k ≈ 42s).
 - **Export:** ~0.5s on the 120k subset. Unchanged.
-- **Last session:** jul4-b / jul5 merge (branch `claude/nervous-vaughan-58e3e8` =
-  `autocode/jul4` final + the NA-footnote audit fix `1d9aea6` + quality sweep).
-  Audit counts on 4 clean-audit NA-source rows are now the CORRECTED (halved)
-  values; verify goldens in this branch's worktree are re-captured accordingly.
+- **Last session:** jul5 reconciliation — branch `autocode/jul4-reconciled` unifies
+  `claude/nervous-vaughan-58e3e8` (= `autocode/jul4` trunk + NA-footnote audit fix
+  `1d9aea6` + exp-G/H/I refactors) with `autocode/jul4`'s later-diverged work (the 48
+  contract tests + round-2 latent hardening: `read_rule_table` col_types=text,
+  `build_conditional_rule_dictionary` radix order + value-type doc fixes). Zero code
+  conflicts (disjoint post-trunk file sets); only the two append-only logs merged.
+  **Verified:** suite 1055/0; postpro data (harmonize/clean/normalize) byte-identical
+  to the jul4 baseline, the ONLY delta being the audit fix's intended halving of 4
+  clean-audit NA-source rows (+ derived matched_count/diagnostics). This is the branch
+  to PR to main. Re-capture verify goldens after it lands (they false-fail on those 4
+  rows until refreshed).
 - **Measurement noise:** the official `PIPELINE_SECONDS` metric has a ~10% run-to-run
   floor (cold first rep + worker spawn + Nextcloud-FS contention + antivirus scans of
   fresh files; postpro alone swings ±7% with no code change) **plus dataset drift**.
