@@ -42,7 +42,7 @@ Cached named list (`.pipeline_constants_cache`, no invalidation). Access: `const
 ### Checkpoints (`checkpoints$*`)
 - `payload_format` = `"whep_checkpoint_v2"` — bump to discard all existing checkpoints.
 - `config_exclude_fields` = `"performance"` — config fields ignored by the checkpoint fingerprint.
-- `fingerprint_sources$import_pipeline` — input dir keys (`paths$data$import$raw`, glob `*.xlsx`) and code dirs (`r/0-general_pipeline`, `r/1-import_pipeline`) fingerprinted into the checkpoint; mismatch on load → rebuild.
+- `fingerprint_sources$import_pipeline` — input dir keys (`paths$data$import$raw`, glob `*.xlsx`), code dirs (`r/0-general_pipeline`, `r/1-import_pipeline`), and output-affecting options (`output_options`: `whep.drop_na_values` → default `TRUE`) fingerprinted into the checkpoint; mismatch on load → rebuild.
 
 ### Dependencies
 - `dependencies$required_packages` — checkmate, cli, data.table, dplyr, fs, future, future.apply, here, openxlsx, progressr, purrr, readr, readxl, renv, stringi, stringr, tibble, tidyr, tidyselect, profvis, writexl.

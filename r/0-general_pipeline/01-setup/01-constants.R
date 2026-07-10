@@ -260,7 +260,14 @@ get_pipeline_constants <- function() {
       import_pipeline = list(
         input_dir_keys = list(c("paths", "data", "import", "raw")),
         input_file_glob = "*.xlsx",
-        code_dirs = c("r/0-general_pipeline", "r/1-import_pipeline")
+        code_dirs = c("r/0-general_pipeline", "r/1-import_pipeline"),
+        # output-affecting whep.* options captured into the fingerprint
+        # (option name -> default used by the consuming code). Execution-only
+        # options (progress, parallelism) stay out so tuning never rebuilds.
+        output_options = stats::setNames(
+          list(TRUE),
+          constants$toggle_options$drop_na_values
+        )
       )
     )
   )

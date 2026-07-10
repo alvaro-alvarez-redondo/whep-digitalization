@@ -36,7 +36,7 @@ constants and option flags these functions read, see
 | Function | File | Purpose | |
 |---|---|---|---|
 | `assert_or_abort(check_result)` | `02-assertions.R` | Pass `TRUE`, abort on error string — used by every helper | int |
-| `save/load/clear_pipeline_checkpoint(...)` / `build_checkpoint_fingerprint(name, config)` | `02-checkpoints.R` | RDS checkpointing (gated by `whep.checkpointing.enabled`). Payloads carry an input fingerprint (input-dir listing + config + code md5s, per `constants$checkpoints$fingerprint_sources`); load returns `NULL` on any mismatch so stale checkpoints rebuild | PUB |
+| `save/load/clear_pipeline_checkpoint(...)` / `build_checkpoint_fingerprint(name, config)` | `02-checkpoints.R` | RDS checkpointing (gated by `whep.checkpointing.enabled`). Payloads carry an input fingerprint (input-dir listing + config + output-affecting options + code md5s, per `constants$checkpoints$fingerprint_sources`); load returns `NULL` on any mismatch so stale checkpoints rebuild | PUB |
 | `get_config_string` / `generate_export_path(config, base, type, ...)` | `02-config-accessors.R` | Nested config access; build export paths. `generate_export_path` is dead code (superseded by `build_processed_export_path()`; remove) | PUB/dead |
 | `drop_na_value_rows(dt, value_column)` | `02-data-cleaning.R` | Drop NA-value rows (gated by `whep.drop_na_values`) | PUB |
 | `ensure_data_table` / `copy_as_data_table` / `coerce_to_data_table` | `02-data-table.R` | data.frame ↔ data.table coercion | int |

@@ -74,12 +74,12 @@ plan, restored on exit. ~4 workers is sweet spot (~2.1×); 8 < 4 in benchmarks.
 - Multi-pass cycle policy defaults to `"warn"`, max 10 passes, early convergence stop.
 - Checkpoints (`whep.checkpointing.enabled`) are fingerprint-invalidated on load:
   payloads store the raw-import `*.xlsx` listing (relative path + size + mtime,
-  recursive — same glob as `discover_files()`), the config minus `performance`, and
-  md5s of `r/0-general_pipeline` + `r/1-import_pipeline` sources. Any mismatch, a
-  pre-fingerprint payload, or an unreadable RDS → `load_pipeline_checkpoint()` returns
-  `NULL` (stage rebuilds) and logs which component changed. Registry:
-  `constants$checkpoints$fingerprint_sources` (unregistered names fingerprint on config
-  alone). Limitation: the fingerprint is
+  recursive — same glob as `discover_files()`), the config minus `performance`,
+  output-affecting options (`whep.drop_na_values`), and md5s of `r/0-general_pipeline`
+  + `r/1-import_pipeline` sources. Any mismatch, a pre-fingerprint payload, or an
+  unreadable RDS → `load_pipeline_checkpoint()` returns `NULL` (stage rebuilds) and
+  logs which component changed. Registry: `constants$checkpoints$fingerprint_sources`
+  (unregistered names fingerprint on config alone). Limitation: the fingerprint is
   taken at save time, so input files changed *mid-run* (live Nextcloud sync) are only
   caught on the run after next.
 

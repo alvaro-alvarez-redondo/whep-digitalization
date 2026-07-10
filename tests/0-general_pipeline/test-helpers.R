@@ -532,7 +532,7 @@ testthat::test_that("build_checkpoint_fingerprint covers inputs, config, and cod
 
   fingerprint <- build_checkpoint_fingerprint("import_pipeline", config)
 
-  testthat::expect_named(fingerprint, c("inputs", "config", "code"))
+  testthat::expect_named(fingerprint, c("inputs", "config", "options", "code"))
   testthat::expect_length(fingerprint$inputs, 1L)
   testthat::expect_identical(fingerprint$inputs[[1]]$path, "wb1.xlsx")
   testthat::expect_true(is.numeric(fingerprint$inputs[[1]]$size))
@@ -540,10 +540,12 @@ testthat::test_that("build_checkpoint_fingerprint covers inputs, config, and cod
   testthat::expect_true(length(fingerprint$code) > 0)
   testthat::expect_true(all(grepl("::[0-9a-f]{32}$", fingerprint$code)))
   testthat::expect_false("performance" %in% names(fingerprint$config))
+  testthat::expect_true("whep.drop_na_values" %in% names(fingerprint$options))
 
   unregistered <- build_checkpoint_fingerprint("no_such_checkpoint", config)
 
   testthat::expect_length(unregistered$inputs, 0L)
+  testthat::expect_length(unregistered$options, 0L)
   testthat::expect_length(unregistered$code, 0L)
 })
 
@@ -612,6 +614,33 @@ testthat::test_that("checkpoint invalidates when an input file changes", {
     config = config
   )
 
+  testthat::expect_null(loaded)
+})
+
+testthat::test_that("checkpoint invalidates when output-affecting options change", {
+  withr::local_options(
+    whep.checkpointing.enabled = TRUE,
+    whep.drop_na_values = TRUE
+  )
+
+  config <- build_test_config()
+  writeLines("wb1", file.path(config$paths$data$import$raw, "wb1.xlsx"))
+
+  save_pipeline_checkpoint(
+    result = list(data = "stale"),
+    checkpoint_name = "import_pipeline",
+    config = config
+  )
+
+  withr::local_options(whep.drop_na_values = FALSE)
+
+  testthat::expect_message(
+    loaded <- load_pipeline_checkpoint(
+      checkpoint_name = "import_pipeline",
+      config = config
+    ),
+    "options"
+  )
   testthat::expect_null(loaded)
 })
 

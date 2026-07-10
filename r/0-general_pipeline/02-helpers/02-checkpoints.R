@@ -119,14 +119,15 @@ build_checkpoint_code_fingerprint <- function(code_dirs) {
 
 #' @title Build checkpoint fingerprint
 #' @description Builds the input-state fingerprint stored inside checkpoint
-#' payloads and recomputed on load: input-directory listings and code md5s from
-#' the `constants$checkpoints$fingerprint_sources` registry entry for
+#' payloads and recomputed on load: input-directory listings, code md5s, and
+#' output-affecting option values from the
+#' `constants$checkpoints$fingerprint_sources` registry entry for
 #' `checkpoint_name`, plus the config minus excluded fields (performance knobs
 #' do not change output). Unregistered checkpoint names are fingerprinted on
 #' config alone.
 #' @param checkpoint_name Character scalar checkpoint identifier.
 #' @param config Named configuration list.
-#' @return Named list with `inputs`, `config`, and `code`.
+#' @return Named list with `inputs`, `config`, `options`, and `code`.
 #' @importFrom checkmate check_string check_list
 build_checkpoint_fingerprint <- function(checkpoint_name, config) {
   assert_or_abort(checkmate::check_string(checkpoint_name, min.chars = 1))
@@ -160,6 +161,14 @@ build_checkpoint_fingerprint <- function(checkpoint_name, config) {
     )
   }
 
+  option_defaults <- fingerprint_sources$output_options
+  option_values <- lapply(
+    stats::setNames(nm = names(option_defaults)),
+    function(option_name) {
+      getOption(option_name, option_defaults[[option_name]])
+    }
+  )
+
   config_fields <- sort(setdiff(
     names(config),
     checkpoint_constants$config_exclude_fields
@@ -168,6 +177,7 @@ build_checkpoint_fingerprint <- function(checkpoint_name, config) {
   return(list(
     inputs = input_listings,
     config = config[config_fields],
+    options = option_values,
     code = build_checkpoint_code_fingerprint(fingerprint_sources$code_dirs)
   ))
 }
