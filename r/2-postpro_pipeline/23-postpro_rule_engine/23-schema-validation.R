@@ -465,12 +465,17 @@ build_conditional_rule_dictionary <- function(rules_dt, stage_name) {
 
   target_value_column <- get_stage_target_value_column(validated_stage_name)
 
+  # method = "radix" pins the ordering to the C locale. This within-group order
+  # feeds last_rule_wins (value_target_result[.N]); base order()'s default
+  # method follows the session LC_COLLATE, so the same rule file could resolve
+  # conflicting rules differently on another machine. Radix makes it portable.
   ordered_rules <- data.table::as.data.table(rules_dt)[order(
     column_source,
     column_target,
     value_source_raw,
     value_target_raw,
-    get(target_value_column)
+    get(target_value_column),
+    method = "radix"
   )]
 
   grouped_rules <- split(

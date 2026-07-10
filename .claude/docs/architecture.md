@@ -54,8 +54,11 @@ hemisphere, continent, polity, commodity, variable, unit, year, value,
 notes, footnotes, yearbook, document
 ```
 
-All pipeline data is **character-typed** end to end. Rows with `value = NA` are dropped by
-default (`whep.drop_na_values`).
+Data is **character-typed through import** (every column, including `value`, read as text).
+The one exception downstream: `audit_data_output()` — the first step of post-processing —
+parses `value` to **numeric** (`readr::parse_double`), so from the clean stage onward `value`
+is a double while every other column stays character. Rows with `value = NA` are dropped by
+default (`whep.drop_na_values`) during import, before that coercion.
 
 ## Entry points
 
