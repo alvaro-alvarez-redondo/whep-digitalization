@@ -647,6 +647,98 @@ testthat::test_that("apply_conditional_rule_group does not audit normalize-equiv
 })
 
 
+testthat::test_that("apply_conditional_rule_group reports source column when only the source is rewritten", {
+  # The group rewrites the source (commodity) via value_source but leaves the
+  # target (unit) unchanged: value_target matches the current value, so the
+  # target update is a no-op. changed_columns must name the SOURCE column, not
+  # the target — a group whose only effect was a source rewrite previously
+  # attributed the change to its target column.
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    unit = "kg"
+  )
+
+  group_rules <- data.table::data.table(
+    column_source = "commodity",
+    value_source_raw = "Wheat",
+    value_source = "wheat_canonical",
+    column_target = "unit",
+    value_target_raw = "kg",
+    value_target = "kg"
+  )
+
+  result <- apply_conditional_rule_group(
+    dataset_dt = dataset_dt,
+    group_rules = group_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  testthat::expect_equal(result$data$commodity[[1]], "wheat_canonical")
+  testthat::expect_equal(result$data$unit[[1]], "kg")
+  testthat::expect_true("commodity" %in% result$changed_columns)
+  testthat::expect_false("unit" %in% result$changed_columns)
+})
+
+testthat::test_that("apply_conditional_rule_group reports both source and target when both change", {
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    unit = "kg"
+  )
+
+  group_rules <- data.table::data.table(
+    column_source = "commodity",
+    value_source_raw = "Wheat",
+    value_source = "wheat_canonical",
+    column_target = "unit",
+    value_target_raw = "kg",
+    value_target = "kilogram"
+  )
+
+  result <- apply_conditional_rule_group(
+    dataset_dt = dataset_dt,
+    group_rules = group_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  testthat::expect_equal(result$data$commodity[[1]], "wheat_canonical")
+  testthat::expect_equal(result$data$unit[[1]], "kilogram")
+  testthat::expect_setequal(result$changed_columns, c("commodity", "unit"))
+})
+
+testthat::test_that("apply_conditional_rule_group reports no changed columns when nothing matches", {
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    unit = "kg"
+  )
+
+  group_rules <- data.table::data.table(
+    column_source = "commodity",
+    value_source_raw = "Rice",
+    value_source = "rice_canonical",
+    column_target = "unit",
+    value_target_raw = "kg",
+    value_target = "kilogram"
+  )
+
+  result <- apply_conditional_rule_group(
+    dataset_dt = dataset_dt,
+    group_rules = group_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  testthat::expect_length(result$changed_columns, 0L)
+})
+
+
 # --- apply_rule_payload ------------------------------------------------------
 
 testthat::test_that("apply_rule_payload applies multiple rule groups", {
@@ -781,6 +873,73 @@ testthat::test_that("apply_rule_payload trigger_columns filters execution to dep
   testthat::expect_equal(filtered_result$data$notes[[1]], "old")
   testthat::expect_true("unit" %in% filtered_result$changed_columns)
   testthat::expect_false("notes" %in% filtered_result$changed_columns)
+})
+
+testthat::test_that("apply_rule_payload reports footnote-engine target columns precisely", {
+  # A footnote rule that rewrites only a target column while preserving the
+  # footnote text must surface the target column ("unit") — not "footnotes" — in
+  # changed_columns, which feeds downstream trigger_columns filtering.
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    unit = "kg",
+    footnotes = "keep me"
+  )
+
+  canonical_rules <- data.table::data.table(
+    column_source = "footnotes",
+    value_source_raw = "keep me",
+    value_source = "keep me",
+    column_target = "unit",
+    value_target_raw = NA_character_,
+    value_target = "kilogram"
+  )
+
+  result <- apply_rule_payload(
+    dataset_dt = dataset_dt,
+    canonical_rules = canonical_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  testthat::expect_equal(result$data$unit[[1]], "kilogram")
+  testthat::expect_equal(result$data$footnotes[[1]], "keep me")
+  testthat::expect_true("unit" %in% result$changed_columns)
+  testthat::expect_false("footnotes" %in% result$changed_columns)
+})
+
+testthat::test_that("apply_rule_payload reports a group's source column when only the source is rewritten", {
+  # A conditional group whose sole effect is a source rewrite must place the
+  # SOURCE column in changed_columns so a downstream group keyed on that column
+  # is not silently skipped by trigger_columns filtering.
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    unit = "kg"
+  )
+
+  canonical_rules <- data.table::data.table(
+    column_source = "commodity",
+    value_source_raw = "Wheat",
+    value_source = "wheat_canonical",
+    column_target = "unit",
+    value_target_raw = "kg",
+    value_target = "kg"
+  )
+
+  result <- apply_rule_payload(
+    dataset_dt = dataset_dt,
+    canonical_rules = canonical_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  testthat::expect_equal(result$data$commodity[[1]], "wheat_canonical")
+  testthat::expect_equal(result$data$unit[[1]], "kg")
+  testthat::expect_true("commodity" %in% result$changed_columns)
+  testthat::expect_false("unit" %in% result$changed_columns)
 })
 
 testthat::test_that("apply_conditional_rule_group enforces exactly one group payload input", {
@@ -1080,6 +1239,98 @@ testthat::test_that("apply_footnote_rules applies target column updates", {
   )
 
   testthat::expect_equal(result$data$unit[[1]], "kilogram")
+})
+
+testthat::test_that("apply_footnote_rules reports the target column when footnote text is preserved", {
+  # Replacing a footnote token with itself preserves the footnote text while the
+  # rule still updates a target column. changed_columns must contain the target
+  # column and must NOT contain "footnotes".
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    unit = "kg",
+    footnotes = "keep me"
+  )
+
+  footnote_rules <- data.table::data.table(
+    column_source = "footnotes",
+    value_source_raw = "keep me",
+    value_source = "keep me",
+    column_target = "unit",
+    value_target_raw = NA_character_,
+    value_target = "kilogram"
+  )
+
+  result <- apply_footnote_rules(
+    dataset_dt = dataset_dt,
+    footnote_rules = footnote_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  testthat::expect_equal(result$data$unit[[1]], "kilogram")
+  testthat::expect_equal(result$data$footnotes[[1]], "keep me")
+  testthat::expect_true("unit" %in% result$changed_columns)
+  testthat::expect_false("footnotes" %in% result$changed_columns)
+})
+
+testthat::test_that("apply_footnote_rules reports footnotes when footnote text changes", {
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    footnotes = "remove me"
+  )
+
+  footnote_rules <- data.table::data.table(
+    column_source = "footnotes",
+    value_source_raw = "remove me",
+    value_source = NA_character_,
+    column_target = "footnotes",
+    value_target_raw = NA_character_,
+    value_target = NA_character_
+  )
+
+  result <- apply_footnote_rules(
+    dataset_dt = dataset_dt,
+    footnote_rules = footnote_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  testthat::expect_true(is.na(result$data$footnotes[[1]]))
+  testthat::expect_true("footnotes" %in% result$changed_columns)
+})
+
+testthat::test_that("apply_footnote_rules reports both footnotes and target when both change", {
+  dataset_dt <- data.table::data.table(
+    commodity = "Wheat",
+    unit = "kg",
+    footnotes = "update unit"
+  )
+
+  footnote_rules <- data.table::data.table(
+    column_source = "footnotes",
+    value_source_raw = "update unit",
+    value_source = NA_character_,
+    column_target = "unit",
+    value_target_raw = NA_character_,
+    value_target = "kilogram"
+  )
+
+  result <- apply_footnote_rules(
+    dataset_dt = dataset_dt,
+    footnote_rules = footnote_rules,
+    stage_name = "clean",
+    dataset_name = "demo",
+    rule_file_id = "test.xlsx",
+    execution_timestamp_utc = "2026-01-01T00:00:00Z"
+  )
+
+  testthat::expect_equal(result$data$unit[[1]], "kilogram")
+  testthat::expect_true(is.na(result$data$footnotes[[1]]))
+  testthat::expect_setequal(result$changed_columns, c("footnotes", "unit"))
 })
 
 testthat::test_that("apply_footnote_rules concatenates mapped notes values", {
