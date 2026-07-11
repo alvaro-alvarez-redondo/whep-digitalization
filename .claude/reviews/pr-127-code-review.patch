@@ -1,0 +1,102 @@
+diff --git a/r/1-import_pipeline/11-reading/11-header-normalization.R b/r/1-import_pipeline/11-reading/11-header-normalization.R
+index 8f0eafd..622a56b 100644
+--- a/r/1-import_pipeline/11-reading/11-header-normalization.R
++++ b/r/1-import_pipeline/11-reading/11-header-normalization.R
+@@ -233,10 +233,13 @@ resolve_canonical_header_renames <- function(
+         alias_new <- alias_targets[alias_rename_mask]
+ 
+         # skip an alias when its source was already renamed by the canonical
+-        # pass, and when an earlier alias in this call already claimed the
+-        # same target — two aliases mapping to one target would otherwise
+-        # hand setnames() duplicate new names and create duplicate columns
+-        alias_keep <- !(alias_old %in% old_names) & !duplicated(alias_new)
++        # pass, when an earlier alias in this call already claimed the same
++        # target, and when two aliases resolve to the same source column —
++        # either collision would otherwise hand setnames() a duplicated `old`
++        # or `new` name and rename columns unpredictably / create duplicates
++        alias_keep <- !(alias_old %in% old_names) &
++          !duplicated(alias_new) &
++          !duplicated(alias_old)
+         if (any(alias_keep)) {
+           old_names <- c(old_names, alias_old[alias_keep])
+           new_names <- c(new_names, alias_new[alias_keep])
+diff --git a/r/1-import_pipeline/12-transform/12-processing.R b/r/1-import_pipeline/12-transform/12-processing.R
+index 35326ee..d1d093a 100644
+--- a/r/1-import_pipeline/12-transform/12-processing.R
++++ b/r/1-import_pipeline/12-transform/12-processing.R
+@@ -212,14 +212,28 @@ read_transform_pipeline_files <- function(
+ 
+   # Each batch carries its own metadata rows so workers receive only small
+   # objects; batch order and within-batch file order preserve the global file
+-  # order, keeping the combined output identical to the two-stage path.
+-  batch_objects <- lapply(workbook_batches, function(batch_paths) {
+-    batch_indices <- match(batch_paths, file_paths)
+-    list(
+-      paths = batch_paths,
+-      file_rows = lapply(batch_indices, function(i) file_list_dt[i])
+-    )
+-  })
++  # order, keeping the combined output identical to the two-stage path. Pair
++  # each file with its metadata by position, not by `match()` on the path
++  # value: `match(batch_paths, file_paths)` returns the first index for a
++  # repeated path, so a file_list_dt that ever maps one workbook path to two
++  # distinct metadata rows would transform the duplicate with the wrong row.
++  # Batches are contiguous slices of file_paths in order, so positional row
++  # indices recover each row's own metadata and stay identical to the
++  # per-row `file_list_dt[i]` pairing of the old two-stage path.
++  batch_row_indices <- split(
++    seq_along(file_paths),
++    rep(seq_along(workbook_batches), lengths(workbook_batches))
++  )
++  batch_objects <- Map(
++    function(batch_paths, batch_indices) {
++      list(
++        paths = batch_paths,
++        file_rows = lapply(batch_indices, function(i) file_list_dt[i])
++      )
++    },
++    workbook_batches,
++    batch_row_indices
++  )
+ 
+   use_parallel <- !inherits(future::plan(), "sequential") &&
+     length(batch_objects) > 1L
+diff --git a/r/3-export_pipeline/30-processed_data/02-collect-layer-tables.R b/r/3-export_pipeline/30-processed_data/02-collect-layer-tables.R
+index abfbb8e..d9b31f1 100644
+--- a/r/3-export_pipeline/30-processed_data/02-collect-layer-tables.R
++++ b/r/3-export_pipeline/30-processed_data/02-collect-layer-tables.R
+@@ -71,13 +71,18 @@ collect_layer_tables_for_export <- function(
+     ))
+   }
+ 
+-  detected_tables <- detected_tables[sort(names(detected_tables))]
++  # Order sheets locale-independently (radix = C locale) to honor the
++  # pipeline's determinism contract; a bare sort() follows the session
++  # LC_COLLATE and can reorder sheets across machines.
++  detected_tables <- detected_tables[
++    sort(names(detected_tables), method = "radix")
++  ]
+ 
+   detected_tables <- detected_tables[
+     !grepl("_post_processed$", names(detected_tables))
+   ]
+ 
+-  ordered_names <- sort(names(detected_tables))
++  ordered_names <- sort(names(detected_tables), method = "radix")
+   detected_tables <- detected_tables[ordered_names]
+ 
+   return(purrr::map(detected_tables, data.table::as.data.table))
+diff --git a/r/3-export_pipeline/run_export_pipeline.R b/r/3-export_pipeline/run_export_pipeline.R
+index da9e38b..1319651 100644
+--- a/r/3-export_pipeline/run_export_pipeline.R
++++ b/r/3-export_pipeline/run_export_pipeline.R
+@@ -58,7 +58,8 @@ run_export_pipeline <- function(
+       stage_path <- here::here("r", "3-export_pipeline", d)
+       files <- list.files(stage_path, pattern = "\\.R$", full.names = FALSE)
+       if (length(files) == 0) return(character(0))
+-      files <- sort(files)
++      # radix (C locale) keeps script source order identical across machines
++      files <- sort(files, method = "radix")
+       file.path(d, files)
+     }),
+     use.names = FALSE
