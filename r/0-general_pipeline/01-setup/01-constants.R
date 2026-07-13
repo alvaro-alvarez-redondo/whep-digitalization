@@ -79,7 +79,19 @@ get_pipeline_constants <- function() {
       # sentinel as 1L (sequential), so its default-sequential contract holds.
       import_parallel_workers = "auto",
       import_parallel_workers_auto_token = "auto",
-      import_parallel_workers_auto_max = 8L
+      import_parallel_workers_auto_max = 8L,
+      # future.apply scheduling factor for the parallel import READ stage.
+      # future_lapply makes ~`factor * workers` chunks and relays progress only
+      # as each chunk's future RESOLVES; the default factor of 1 makes exactly
+      # `workers` chunks -> few resolution rounds -> the bar can sit still then
+      # jump. A factor > 1 makes more, smaller chunks so progress relays steadily
+      # across the ~tens-of-seconds read. 4 is verified perf-neutral on the full
+      # dataset (the read closure captures only small `config`, so extra chunks
+      # add negligible serialization). NOT applied to the transform stage: its
+      # closure captures the large `read_data_list`, so more chunks there
+      # re-serialize it and measured ~5x slower. Override via
+      # config$performance$import_future_scheduling.
+      import_future_scheduling = 4
     ),
     defaults = list(
       unknown_document = "(unknown_document)",
@@ -211,6 +223,7 @@ get_pipeline_constants <- function() {
 
   constants$options <- list(
     progress_enabled = "whep.progress.enabled",
+    progress_dark = "whep.progress.dark",
     checkpointing_enabled = "whep.checkpointing.enabled",
     import_parallel_workers = "whep.import.parallel_workers"
   )
@@ -248,13 +261,98 @@ get_pipeline_constants <- function() {
 
   constants$general_pipeline <- list(
     total_steps = 5L,
-    progress_bar_width = 40L,
     progress_messages = list(
-      source_scripts = "general pipeline: sourcing general scripts",
-      check_dependencies = "general pipeline: checking dependencies",
-      load_dependencies = "general pipeline: loading dependencies",
-      load_config = "general pipeline: loading pipeline configuration",
-      create_dirs = "general pipeline: creating required directories"
+      source_scripts = "sourcing general scripts",
+      check_dependencies = "checking dependencies",
+      load_dependencies = "loading dependencies",
+      load_config = "loading pipeline configuration",
+      create_dirs = "creating required directories"
+    )
+  )
+
+  # Unified progress-bar presentation, shared by all four stage runners.
+  #
+  # Every stage opens its own progressr::with_progress() block and builds a
+  # cli-backed handler via pipeline_progress_handlers(stage). The handler shows
+  # a spinner + bar + percent + ETA + the live per-step status message, so the
+  # bar reflects REAL progress and animates instead of freezing. The format
+  # string itself is assembled in pipeline_progress_handlers() from these
+  # pieces: each stage is distinguished only by its label (baked as a string
+  # literal because progressr's progressor() has no name= arg -> {cli::pb_name}
+  # would render empty), the import stage adds a throughput column (rate_stages),
+  # and the colors come from the theme-aware `palette` below.
+  #
+  # palette: each role is a cli call (function name + optional arg) spliced into
+  # the format as `{cli::<value>(<token>)}` by pipeline_progress_handlers(). The
+  # palette is chosen by pipeline_progress_dark() (RStudio dark theme / the
+  # whep.progress.dark option / default dark). Fixed ANSI shades like col_silver
+  # read fine on a light background but turn muddy on a dark one, so the dark
+  # palette uses white + soft pastel truecolor (via make_ansi_style) for legible,
+  # calm accents on a dark console.
+  #   muted   - spinner, counts, rate, elapsed, status
+  #   accent  - the bold stage name AND the percent (one unified color)
+  #   success - the done tick + the word "done"
+  #
+  # No format_failed: progressr does not render a custom failure format on a
+  # thrown condition (it prints its own "interrupted" notice), so failures are
+  # surfaced via cli::cli_abort at the call sites instead.
+  constants$progress <- list(
+    show_after = 0,
+    # Minimum seconds between bar redraws. The parallel import relays progress in
+    # bursts (a whole batch's per-file ticks arrive at once when its future
+    # resolves); with no throttle the cli bar repaints dozens of times in a few
+    # milliseconds, which reads as flicker (the bar appears to vanish and
+    # reappear). Throttling coalesces each burst into a single repaint.
+    update_interval = 0.2,
+    stage_labels = list(
+      general = "general",
+      import = "import",
+      postpro = "post-process",
+      export = "export"
+    ),
+    palette = list(
+      light = list(
+        muted = "col_silver",
+        accent = "col_cyan",
+        success = "col_green"
+      ),
+      dark = list(
+        muted = "col_br_white",
+        accent = "make_ansi_style('#a6c8ff')",
+        success = "make_ansi_style('#a6e3a1')"
+      )
+    ),
+    # Stages whose in-progress line includes the throughput-rate column.
+    rate_stages = "import",
+    # Fallback when cli / progressr::handler_cli is unavailable.
+    fallback_bar_width = 40L,
+    # sprintf template for the postpro per-pass pulse (stage name, pass index).
+    pulse_template = "%s pass %d",
+    # Per-step status messages (the live text shown as {cli::pb_status}).
+    messages = list(
+      import = list(
+        reading = "reading source files",
+        read_file = "reading %s",
+        transforming = "transforming source files",
+        transform_file = "transforming %s",
+        splitting = "splitting validation groups",
+        validating = "validating transformed records"
+      ),
+      postpro = list(
+        audit = "auditing raw data",
+        init_dirs = "initializing audit directories",
+        templates = "generating rule templates",
+        collect_preflight = "collecting preflight checks",
+        assert_preflight = "asserting preflight checks",
+        clean = "running clean layer",
+        standardize = "running standardize layer",
+        harmonize = "running harmonize layer",
+        persist = "persisting diagnostics"
+      ),
+      export = list(
+        processed = "processed workbooks",
+        lists = "lists workbooks"
+      )
     )
   )
 

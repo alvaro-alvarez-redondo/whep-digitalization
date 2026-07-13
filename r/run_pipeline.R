@@ -13,6 +13,15 @@ if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
   )
 }
 
+# Sourced before the first "running pipeline script" message so the palette-aware
+# console helpers (pipeline_alert_info/_success, pipeline_paint) are available.
+if (!exists("pipeline_alert_info", mode = "function", inherits = TRUE)) {
+  source(
+    here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+    echo = FALSE
+  )
+}
+
 #' @title Run full project pipeline
 #' @description Runs the general, import, post-processing, and export pipeline
 #'   scripts in deterministic sequence.
@@ -63,12 +72,11 @@ run_pipeline <- function(
 
   elapsed_seconds <- (proc.time() - pipeline_start_time)[["elapsed"]]
   iteration_summary <- build_postpro_iteration_summary()
-  cli::cli_alert_success(
-    paste0(
-      "Pipeline completed in {.strong {format_elapsed_time(elapsed_seconds)}}",
-      iteration_summary
-    )
-  )
+  pipeline_alert_success(paste0(
+    "Pipeline completed in ",
+    cli::style_bold(format_elapsed_time(elapsed_seconds)),
+    iteration_summary
+  ))
 
   return(invisible(TRUE))
 }
@@ -238,9 +246,10 @@ run_pipeline_script <- function(pipeline_file) {
   }
 
   pipeline_name <- basename(pipeline_file)
-  cli::cli_alert_info(
-    "{.strong running pipeline script: {.val {pipeline_name}}}"
-  )
+  pipeline_alert_info(paste0(
+    "running pipeline script: ",
+    pipeline_paint(paste0("\"", pipeline_name, "\""), "accent")
+  ))
 
   tryCatch(
     {
@@ -255,6 +264,34 @@ run_pipeline_script <- function(pipeline_file) {
       ))
     }
   )
+}
+
+#' @title Build a display-only view frame with fixed-notation numbers
+#' @description Returns a copy of `dataset` whose numeric columns are rendered as
+#' fixed-notation character strings so `utils::View()` never shows scientific
+#' notation. RStudio's data viewer ignores `scipen` for numeric columns, so the
+#' only reliable fix is to feed it strings. `as.character()` under `scipen = 999`
+#' is faithful — it preserves the exact value with no rounding, trailing zeros,
+#' or `e+NN` (unlike `format(scientific = FALSE, digits = ...)`, which rounds or
+#' pads). Display only: the pipeline objects and all exports are untouched (the
+#' trade-off is that the viewed numeric columns sort as text).
+#' @param dataset A `data.frame`/`data.table`.
+#' @return A `data.table` copy with numeric columns coerced to character.
+#' @keywords internal
+build_pipeline_view_frame <- function(dataset) {
+  view_dt <- data.table::as.data.table(data.table::copy(dataset))
+
+  numeric_columns <- names(view_dt)[vapply(view_dt, is.numeric, logical(1))]
+  if (length(numeric_columns) > 0L) {
+    previous_options <- options(scipen = 999)
+    on.exit(options(previous_options), add = TRUE)
+    view_dt[,
+      (numeric_columns) := lapply(.SD, as.character),
+      .SDcols = numeric_columns
+    ]
+  }
+
+  return(view_dt)
 }
 
 #' @title Optionally view pipeline output object
@@ -288,7 +325,13 @@ maybe_view_pipeline_output <- function(show_view) {
     }
 
     if (!is.na(available_object) && nzchar(available_object)) {
-      utils::View(get(available_object, inherits = TRUE))
+      # View a fixed-notation display copy (see build_pipeline_view_frame) so
+      # numeric columns like `value` never render as 1.9e+11 in the viewer;
+      # keep the object name as the viewer tab title.
+      utils::View(
+        build_pipeline_view_frame(get(available_object, inherits = TRUE)),
+        title = available_object
+      )
     }
   }
 

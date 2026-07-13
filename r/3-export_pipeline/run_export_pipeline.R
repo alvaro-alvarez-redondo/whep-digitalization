@@ -17,8 +17,12 @@ if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
   )
 }
 
-
-
+if (!exists("pipeline_progress_handlers", mode = "function", inherits = TRUE)) {
+  source(
+    here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+    echo = FALSE
+  )
+}
 
 
 #' @title Run export pipeline
@@ -32,7 +36,7 @@ if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
 #' @return Named list with `processed_paths` and `lists_paths` as named
 #' character vectors.
 #' @importFrom checkmate assert_list assert_flag assert_environment
-#' @importFrom progressr handlers handler_txtprogressbar with_progress progressor
+#' @importFrom progressr with_progress progressor
 run_export_pipeline <- function(
   config,
   data_objects = NULL,
@@ -91,13 +95,10 @@ run_export_pipeline <- function(
     recurse = TRUE
   )
 
-  progressr::handlers(progressr::handler_txtprogressbar(
-    style = 3,
-    width = 40,
-    clear = FALSE
-  ))
+  export_messages <- get_pipeline_constants()$progress$messages$export
 
-  export_result <- progressr::with_progress({
+  export_result <- with_pipeline_progress(
+    {
     progress <- progressr::progressor(along = seq_len(2L))
 
     processed_paths <- export_processed_data(
@@ -106,7 +107,7 @@ run_export_pipeline <- function(
       overwrite = overwrite,
       env = env
     )
-    progress("export pipeline: processed workbooks")
+    progress(export_messages$processed)
 
     lists_paths <- export_lists(
       config = config,
@@ -114,13 +115,15 @@ run_export_pipeline <- function(
       overwrite = overwrite,
       env = env
     )
-    progress("export pipeline: lists workbooks")
+    progress(export_messages$lists)
 
     return(list(
       processed_paths = processed_paths,
       lists_paths = lists_paths
     ))
-  })
+    },
+    "export"
+  )
 
   assert_export_paths_contract(export_result)
 

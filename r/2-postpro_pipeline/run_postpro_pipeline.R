@@ -17,6 +17,13 @@ if (!exists("ensure_directories_exist", mode = "function", inherits = TRUE)) {
   )
 }
 
+if (!exists("pipeline_progress_handlers", mode = "function", inherits = TRUE)) {
+  source(
+    here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+    echo = FALSE
+  )
+}
+
 #' @title Source one post-processing script
 #' @description Sources a single script with deterministic error handling.
 #' @param script_path Character scalar script path.
@@ -148,19 +155,27 @@ run_postpro_pipeline_batch <- function(
   checkmate::assert_string(dataset_name, min.chars = 1)
 
   total_steps <- 9
+  progress_messages <- get_pipeline_constants()$progress$messages$postpro
 
-  return(progressr::with_progress({
+  return(with_pipeline_progress(
+    {
     progress <- progressr::progressor(steps = total_steps)
 
-    progress("Post-Processing Pipeline Progress: auditing raw data")
+    # Pulse the bar (without advancing it) once per rule-application pass so the
+    # long multi-pass clean/harmonize stages stay visibly alive instead of
+    # holding on a single step. amount = 0 re-renders the spinner + status
+    # message while keeping the 9 hard ticks as the only bar advances.
+    progress_pulse <- function(message) {
+      progress(message, amount = 0)
+    }
+
+    progress(progress_messages$audit)
     audited_raw_dt <- audit_data_output(
       dataset_dt = raw_dt,
       config = config
     )
 
-    progress(
-      "Post-Processing Pipeline Progress: initializing audit directories"
-    )
+    progress(progress_messages$init_dirs)
     # Resolve the audit paths only. The directory tree is created in the very
     # next step by generate_postpro_rule_templates() (which calls
     # initialize_postpro_output_root internally), so creating it here as well
@@ -168,13 +183,13 @@ run_postpro_pipeline_batch <- function(
     # All audit-dir writes (template, persisted audit) happen after that step.
     audit_paths <- get_postpro_output_paths(config)
 
-    progress("Post-Processing Pipeline Progress: generating rule templates")
+    progress(progress_messages$templates)
     template_paths <- generate_postpro_rule_templates(
       config = config,
       overwrite = TRUE
     )
 
-    progress("Post-Processing Pipeline Progress: collecting preflight checks")
+    progress(progress_messages$collect_preflight)
     # `expected_columns` must be the columns the post-processing stages require,
     # not the dataset's own columns — passing the latter makes the check
     # `all(expected %in% dataset)` trivially true and the preflight gate dead.
@@ -185,29 +200,31 @@ run_postpro_pipeline_batch <- function(
       dataset_columns = colnames(audited_raw_dt)
     )
 
-    progress("Post-Processing Pipeline Progress: asserting preflight checks")
+    progress(progress_messages$assert_preflight)
     assert_postpro_preflight(preflight_result)
 
-    progress("Post-Processing Pipeline Progress: running clean layer")
+    progress(progress_messages$clean)
     clean_dt <- run_cleaning_layer_batch(
       dataset_dt = audited_raw_dt,
       config = config,
-      dataset_name = dataset_name
+      dataset_name = dataset_name,
+      progress_pulse = progress_pulse
     )
     clean_dt <- sort_pipeline_stage_dt(clean_dt)
 
-    progress("Post-Processing Pipeline Progress: running standardize layer")
+    progress(progress_messages$standardize)
     normalize_dt <- run_units_standardization_stage(
       clean_dt = clean_dt,
       config = config
     )
     normalize_dt <- sort_pipeline_stage_dt(normalize_dt)
 
-    progress("Post-Processing Pipeline Progress: running harmonize layer")
+    progress(progress_messages$harmonize)
     harmonize_dt <- run_harmonize_layer_batch(
       dataset_dt = normalize_dt,
       config = config,
-      dataset_name = dataset_name
+      dataset_name = dataset_name,
+      progress_pulse = progress_pulse
     )
     harmonize_dt <- sort_pipeline_stage_dt(harmonize_dt)
 
@@ -232,7 +249,7 @@ run_postpro_pipeline_batch <- function(
       standardize_matched_rule_counts <- data.table::data.table()
     }
 
-    progress("Post-Processing Pipeline Progress: persisting diagnostics")
+    progress(progress_messages$persist)
     audit_output_path <- persist_postpro_audit(
       clean_audit_dt = clean_audit,
       harmonize_audit_dt = harmonize_audit,
@@ -267,7 +284,9 @@ run_postpro_pipeline_batch <- function(
     attr(harmonize_dt, "stage_normalize") <- normalize_dt
 
     return(harmonize_dt)
-  }))
+    },
+    "postpro"
+  ))
 }
 
 #' @title Run post-processing pipeline automatically

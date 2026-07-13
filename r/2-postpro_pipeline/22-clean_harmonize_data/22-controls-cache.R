@@ -373,36 +373,119 @@ serialize_stage_state_signature <- function(dataset_dt) {
   return(serialize(dataset_dt, connection = NULL, ascii = FALSE, version = 2))
 }
 
-#' @title Find repeated stage-state signature
-#' @description Returns prior pass index when a state signature already exists.
-#' @param state_signatures List of prior raw state signatures.
-#' @param state_pass_indexes Integer vector pass indexes aligned to signatures.
-#' @param candidate_signature Raw vector candidate signature.
-#' @return Integer scalar repeated pass index or `NA_integer_`.
-#' @importFrom checkmate assert_list assert_integer assert_raw
-find_repeated_stage_state_pass <- function(
-  state_signatures,
-  state_pass_indexes,
-  candidate_signature
-) {
-  checkmate::assert_list(state_signatures)
-  checkmate::assert_integer(state_pass_indexes, any.missing = FALSE)
-  checkmate::assert_raw(candidate_signature, min.len = 1)
+#' @title Fingerprint a stage state cheaply
+#' @description Builds a cheap, sound summary of a stage dataset: equal
+#' datasets always produce equal fingerprints, so a fingerprint mismatch
+#' proves two states differ without serializing either one. Collisions are
+#' possible (equal fingerprints do not prove equality) and are resolved by
+#' the exact serialized comparison in [find_repeated_stage_state_pass()].
+#' @param dataset_dt Stage dataset as data.table.
+#' @return List fingerprint (row count, column names, per-column summaries).
+#' @importFrom checkmate assert_data_table
+fingerprint_stage_state <- function(dataset_dt) {
+  checkmate::assert_data_table(dataset_dt)
 
-  if (length(state_signatures) != length(state_pass_indexes)) {
+  column_summaries <- lapply(dataset_dt, function(column_values) {
+    na_count <- sum(is.na(column_values))
+    byte_count <- if (is.character(column_values)) {
+      sum(nchar(column_values, type = "bytes"), na.rm = TRUE)
+    } else {
+      0
+    }
+    c(na_count = na_count, byte_count = byte_count)
+  })
+
+  return(list(
+    row_count = nrow(dataset_dt),
+    column_names = names(dataset_dt),
+    column_classes = vapply(
+      dataset_dt,
+      function(column_values) paste(class(column_values), collapse = "|"),
+      character(1)
+    ),
+    column_summaries = column_summaries
+  ))
+}
+
+#' @title Build a stage-state record for cycle detection
+#' @description Snapshots a pass state as a cheap fingerprint plus a
+#' copy-on-write data snapshot. The exact serialized form — byte-identical to
+#' what [serialize_stage_state_signature()] produces for the state at snapshot
+#' time — is materialized lazily by [resolve_stage_state_serialization()],
+#' only when a fingerprint collision forces an exact comparison. In real runs
+#' pass states almost never repeat, so the per-pass cost drops from a full
+#' dataset serialization to a column-pointer copy plus counting pass.
+#' @param dataset_dt Stage dataset as data.table.
+#' @return Environment record with `fingerprint`, `data_snapshot`, `serialized`.
+#' @importFrom checkmate assert_data_table
+build_stage_state_record <- function(dataset_dt) {
+  checkmate::assert_data_table(dataset_dt)
+
+  record <- new.env(parent = emptyenv())
+  record$fingerprint <- fingerprint_stage_state(dataset_dt)
+  record$data_snapshot <- data.table::copy(dataset_dt)
+  record$serialized <- NULL
+
+  return(record)
+}
+
+#' @title Resolve the exact serialized form of a stage-state record
+#' @description Materializes (and caches) the record's serialized signature
+#' from its data snapshot; the snapshot is released once serialized.
+#' @param record Stage-state record environment.
+#' @return Raw vector state signature.
+#' @importFrom checkmate assert_environment
+resolve_stage_state_serialization <- function(record) {
+  checkmate::assert_environment(record)
+
+  if (is.null(record$serialized)) {
+    record$serialized <- serialize_stage_state_signature(record$data_snapshot)
+    record$data_snapshot <- NULL
+  }
+
+  return(record$serialized)
+}
+
+#' @title Find repeated stage-state record
+#' @description Returns prior pass index when a candidate state matches an
+#' earlier pass state. Fingerprints screen out definite non-matches; only
+#' fingerprint collisions fall through to the exact serialized comparison, so
+#' the verdict is always identical to comparing full serializations.
+#' @param state_records List of prior stage-state record environments.
+#' @param state_pass_indexes Integer vector pass indexes aligned to records.
+#' @param candidate_record Candidate stage-state record environment.
+#' @return Integer scalar repeated pass index or `NA_integer_`.
+#' @importFrom checkmate assert_list assert_integer assert_environment
+find_repeated_stage_state_pass <- function(
+  state_records,
+  state_pass_indexes,
+  candidate_record
+) {
+  checkmate::assert_list(state_records)
+  checkmate::assert_integer(state_pass_indexes, any.missing = FALSE)
+  checkmate::assert_environment(candidate_record)
+
+  if (length(state_records) != length(state_pass_indexes)) {
     cli::cli_abort(
-      "state-signature and pass-index vectors must have equal length"
+      "state-record and pass-index vectors must have equal length"
     )
   }
 
-  if (length(state_signatures) == 0L) {
+  if (length(state_records) == 0L) {
     return(NA_integer_)
   }
 
   matches <- which(vapply(
-    state_signatures,
-    function(existing_signature) {
-      identical(existing_signature, candidate_signature)
+    state_records,
+    function(existing_record) {
+      if (!identical(existing_record$fingerprint, candidate_record$fingerprint)) {
+        return(FALSE)
+      }
+
+      identical(
+        resolve_stage_state_serialization(existing_record),
+        resolve_stage_state_serialization(candidate_record)
+      )
     },
     logical(1)
   ))

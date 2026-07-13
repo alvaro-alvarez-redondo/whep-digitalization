@@ -16,6 +16,13 @@ if (!exists("get_pipeline_constants", mode = "function", inherits = TRUE)) {
   )
 }
 
+if (!exists("pipeline_progress_handlers", mode = "function", inherits = TRUE)) {
+  source(
+    here::here("r", "0-general_pipeline", "02-helpers", "02-progress.R"),
+    echo = FALSE
+  )
+}
+
 #' @title run import pipeline
 #' @description run the complete import pipeline by discovering source files,
 #' reading sheets, transforming to wide and long outputs, validating each
@@ -124,62 +131,60 @@ run_import_pipeline <- function(config) {
   }
 
   total_steps <- (2 * nrow(file_list_dt)) + 4
+  progress_messages <- get_pipeline_constants()$progress$messages$import
 
-  result <- progressr::with_progress({
+  result <- with_pipeline_progress(
+    {
     progress <- progressr::progressor(steps = total_steps)
 
-    progress("Import Pipeline Progress: reading source files")
-    read_pipeline_result <- read_pipeline_files(
+    progress(progress_messages$reading)
+    # Fused read+transform: each batch worker reads its workbooks and
+    # transforms them in place, so the bulky intermediate read data never
+    # round-trips between the main process and the workers (that re-export
+    # dominated main-process import time). Output is identical to the
+    # two-stage read_pipeline_files() -> transform_files_list() path; the
+    # fused stage ticks read and transform once per file, so the
+    # (2 * nfiles) + 4 progress budget still closes.
+    fused_result <- read_transform_pipeline_files(
       file_list_dt = file_list_dt,
       config = config,
       progressor = progress
     )
 
     checkmate::assert_names(
-      names(read_pipeline_result),
-      must.include = c("read_data_list", "errors")
-    )
-    checkmate::assert_list(
-      read_pipeline_result$read_data_list,
-      any.missing = TRUE
+      names(fused_result),
+      must.include = c("transformed", "errors")
     )
     checkmate::assert_character(
-      read_pipeline_result$errors,
+      fused_result$errors,
       any.missing = FALSE
     )
 
-    read_data_list <- read_pipeline_result$read_data_list
-
-    progress("Import Pipeline Progress: transforming source files")
-    transformed <- transform_files_list(
-      file_list_dt = file_list_dt,
-      read_data_list = read_data_list,
-      config = config,
-      progressor = progress
-    )
+    progress(progress_messages$transforming)
+    transformed <- fused_result$transformed
 
     transformed$long_raw <- drop_na_value_rows(transformed$long_raw)
 
-    progress("Import Pipeline Progress: splitting validation groups")
-    validation_data_list <- split(
+    progress(progress_messages$splitting)
+    progress(progress_messages$validating)
+    # Vectorized equivalent of split(by = "document") + per-document
+    # validate_long_dt(): same validated rows (document-major) and the same
+    # error strings in the same order, without 1360 per-document table
+    # copies, aggregations, and clock lookups.
+    validation_result <- validate_long_dt_by_document(
       transformed$long_raw,
-      by = "document",
-      keep.by = TRUE,
-      sorted = FALSE
+      config
     )
 
-    progress("Import Pipeline Progress: validating transformed records")
-    validation_results <- lapply(
-      validation_data_list,
-      function(document_dt) validate_long_dt(document_dt, config)
-    )
+    validation_errors <- validation_result$errors
 
-    audited_dt_list <- lapply(validation_results, `[[`, "data")
-
-    validation_errors <- unlist(
-      lapply(validation_results, `[[`, "errors"),
-      use.names = FALSE
-    )
+    # zero rows -> zero document groups: the split path consolidated an empty
+    # list, so keep that shape for exact parity
+    audited_dt_list <- if (nrow(validation_result$data) == 0L) {
+      list()
+    } else {
+      list(validation_result$data)
+    }
 
     consolidated_result <- consolidate_audited_dt(audited_dt_list, config)
     checkmate::assert_names(
@@ -198,12 +203,14 @@ run_import_pipeline <- function(config) {
       data = consolidated_data,
       wide_raw = transformed$wide_raw,
       diagnostics = list(
-        reading_errors = read_pipeline_result$errors,
+        reading_errors = fused_result$errors,
         validation_errors = validation_errors,
         warnings = consolidated_result$warnings
       )
     )
-  })
+    },
+    "import"
+  )
 
   save_pipeline_checkpoint(
     result = result,

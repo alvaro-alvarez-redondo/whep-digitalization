@@ -7,9 +7,9 @@ regressions → repeat indefinitely.
 
 R pipeline (`language = "r"`). Configuration in `autocode.toml` (repo root):
 
-- **Source files:** `r/**/*.R` — **Read-only:** `tests/**/*.R`, `perf/**/*.R`
+- **Source files:** `r/**/*.R` — **Read-only:** `tests/**/*.R`, `.claude/bench/**`
 - **Metrics:** tests (weight 0.5, up) + performance (weight 0.5, down — `PIPELINE_SECONDS`
-  from `perf/autocode_bench.R`, 120k-row subset, min 2 reps)
+  from `.claude/bench/autocode_bench.R`, 120k-row subset, min 2 reps)
 
 **Skip project detection and setup.** Go straight to the experiment loop. Read
 `.claude/progress.md` and `.claude/results.tsv` for current state.

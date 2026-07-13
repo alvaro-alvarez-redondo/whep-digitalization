@@ -8,7 +8,7 @@ For the architecture and data flow, see [architecture.md](architecture.md). For 
 constants and option flags these functions read, see
 [constants-and-options.md](constants-and-options.md).
 
-> 62 source `.R` files + 34 test files. This index lists durable function names and
+> 72 source `.R` files + 36 test files. This index lists durable function names and
 > responsibilities; it intentionally omits line numbers (they rot). Re-derive a stale
 > entry by reading the named file.
 
@@ -37,14 +37,17 @@ constants and option flags these functions read, see
 |---|---|---|---|
 | `assert_or_abort(check_result)` | `02-assertions.R` | Pass `TRUE`, abort on error string — used by every helper | int |
 | `save/load/clear_pipeline_checkpoint(...)` | `02-checkpoints.R` | RDS checkpointing (gated by `whep.checkpointing.enabled`) | PUB |
-| `get_config_string` / `generate_export_path(config, base, type, ...)` | `02-config-accessors.R` | Nested config access; build export paths. `generate_export_path` is dead code (superseded by `build_processed_export_path()`; remove) | PUB/dead |
+| `get_config_string` / `generate_export_path(config, base, type, ...)` | `02-config-accessors.R` | Nested config access; build export paths. `generate_export_path` has no pipeline callers (superseded by `build_processed_export_path()`) but is pinned by a read-only contract test in `test-helpers.R` — keep until that test is retired | PUB |
 | `drop_na_value_rows(dt, value_column)` | `02-data-cleaning.R` | Drop NA-value rows (gated by `whep.drop_na_values`) | PUB |
 | `ensure_data_table` / `copy_as_data_table` / `coerce_to_data_table` | `02-data-table.R` | data.frame ↔ data.table coercion | int |
 | `assign_environment_values(values, env)` | `02-environment.R` | Deterministic named assignment into an env | int |
 | `validate_export_import(df, base_name)` | `02-export-validation.R` | Validate export input is a non-empty data.frame | int |
-| `cached_unzip(zip_path, exdir, overwrite)` | `02-io-cache.R` | Unzip only when archive newer than target | PUB |
 | `coerce_numeric_safe(x)` | `02-numeric-coercion.R` | Char→numeric, empties/non-numeric → NA, no warnings | PUB |
 | `map_with_progress(x, .f, ...)` | `02-progress.R` | `progressr`-aware map (gated by `whep.progress.enabled`) | PUB |
+| `with_pipeline_progress(expr, stage)` | `02-progress.R` | The wrapper all four stage runners use instead of `progressr::with_progress()` directly. Bundles the stage handler + render gate + redraw throttle + output buffering (so the parallel import bar doesn't flicker). Evaluates `expr` lazily in the caller's frame. | PUB |
+| `pipeline_alert_info(message)` / `pipeline_alert_success(message)` / `pipeline_paint(text, role)` / `pipeline_console_palette()` | `02-progress.R` | Palette-matched console messages: `cli::cli_alert_*` replacements whose symbol + accents use the same pastel palette as the bars (the success tick matches the bar's done tick). Used by `run_pipeline.R` for the per-script and completion lines. | PUB |
+| `pipeline_progress_handlers(stage, enable)` / `pipeline_progress_enabled()` / `pipeline_progress_dark()` | `02-progress.R` | Build the shared cli progress handler for a stage (label baked in; `"import"` adds a rate column; theme-aware colors; throttled redraw; `"void"`/fallback when disabled/unavailable); resolve the render gate (`whep.progress.enabled` **and** `interactive()`); resolve the dark palette (`whep.progress.dark` ▸ RStudio theme ▸ default dark). | PUB |
+| `cached_unzip(zip_path, exdir, overwrite)` | `02-io-cache.R` | Unzip only when archive newer than target. No pipeline callers, but the read-only test harness sources the file by explicit path (10 refs in `tests/`) — keep until those lists are retired. Known limitation: mtime guard can serve stale extractions after sync-tool mtime inversion | dead/pinned |
 | `sort_pipeline_stage_dt(dt, sort_columns)` | `02-sorting.R` | Sort by canonical business-key order | PUB |
 | `normalize_string` / `normalize_string_impl` / `clean_footnote` / `normalize_filename` | `02-string-normalization.R` | Lowercase-ASCII normalization (cardinality-aware fast path) | PUB/int |
 | `format_elapsed_time(seconds)` | `02-time-formatting.R` | Format `Ns` / `Nm Ns` / `Nh Nm` for CLI | PUB |
@@ -71,7 +74,7 @@ constants and option flags these functions read, see
 | Function | File | Purpose | |
 |---|---|---|---|
 | `read_pipeline_files(file_list_dt, config, progressor)` | `11-batching.R` | Batch + read files (parallel when a non-sequential `future` plan is set) | PUB |
-| `split_workbook_batches` / `resolve_import_workbook_batch_size` / `read_workbook_batch` | `11-batching.R` | Batching internals | int |
+| `split_workbook_batches` / `resolve_import_workbook_batch_size` / `resolve_import_future_scheduling` / `read_workbook_batch` | `11-batching.R` | Batching internals (`resolve_import_future_scheduling` sets the `future_lapply` chunk count so read progress relays steadily) | int |
 | `normalize_header_names` / `validate_header_normalization` / `resolve_canonical_header_renames` | `11-header-normalization.R` | Normalize + canonicalize headers (alias `country → polity`) | int |
 | `read_excel_sheet` / `read_file_sheets` / `compute_non_empty_base_rows` | `11-sheet-read.R` | Read a sheet/file as text; tag `variable := sheet_name`; drop empty rows | int |
 | `assert_read_result_contract` / `build_read_error` / `safe_execute_read` / `has_read_errors` / `normalize_pipeline_read_result` / `create_empty_read_result` | `11-read-utils.R` | Read-result shape + error aggregation | int |
@@ -79,7 +82,8 @@ constants and option flags these functions read, see
 ### `12-transform/`
 | Function | File | Purpose | |
 |---|---|---|---|
-| `transform_files_list(file_list_dt, read_data_list, config, progressor)` | `12-processing.R` | Transform all files → consolidated `list(wide_raw, long_raw)` | PUB |
+| `read_transform_pipeline_files(file_list_dt, config, progressor)` | `12-processing.R` | **Runtime import path:** fused read+transform per workbook batch (parallel when plan non-sequential); returns `list(transformed, errors)` — read data never round-trips to the main process | PUB |
+| `transform_files_list(file_list_dt, read_data_list, config, progressor)` | `12-processing.R` | Transform all files → consolidated `list(wide_raw, long_raw)` (unit-tested building block; superseded at runtime by the fused path) | PUB |
 | `process_files` / `transform_single_file` | `12-processing.R` | Per-file transform (parallel when plan is non-sequential) | int |
 | `assert_transform_result_contract(transform_result)` | `12-reshape.R` | **Contract:** result is `list(wide_raw, long_raw)`, both data.table | int |
 | `reshape_to_long` / `add_metadata` / `transform_file_dt` / `resolve_commodity_name` / `build_empty_transform_result` | `12-reshape.R` | Wide→long melt; attach document/notes/yearbook | int |
@@ -90,8 +94,9 @@ constants and option flags these functions read, see
 |---|---|---|---|
 | `consolidate_audited_dt(dt_list, config)` | `13-output.R` | Row-bind with fill; enforce canonical column order | PUB |
 | `validate_output_column_order(config)` | `13-output.R` | Verify configured order covers the target schema | int |
-| `validate_long_dt(long_dt, config)` | `13-validate.R` | Run mandatory-field, year, duplicate validators; collect errors (non-fatal) | PUB |
-| `validate_mandatory_fields_dt` / `detect_duplicates_dt` / `validate_year_values` | `13-validate.R` | Individual validators | int |
+| `validate_long_dt_by_document(long_dt, config)` | `13-validate.R` | **Runtime import path:** vectorized equivalent of split-by-document + per-piece `validate_long_dt()` — same rows (document-major) and same error strings in the same order, ~15× faster | PUB |
+| `validate_long_dt(long_dt, config, current_year)` | `13-validate.R` | Run mandatory-field, year, duplicate validators on one table; collect errors (non-fatal) | PUB |
+| `validate_mandatory_fields_dt` / `detect_duplicates_dt` / `validate_year_values` | `13-validate.R` | Individual validators (`validate_year_values` takes optional `current_year` to avoid per-call clock lookups) | int |
 
 ### Orchestrator: `run_import_pipeline(config)` → `list(data, wide_raw, diagnostics)`; plus `run_import_pipeline_auto(auto_run, env)`.
 
@@ -121,8 +126,9 @@ Largest stage. `source_postpro_scripts()` runs at module load (sourcing
 | Function | Purpose | |
 |---|---|---|
 | `run_cleaning_layer_batch(dataset_dt, config, dataset_name)` | Run the **clean** stage (multi-pass) | PUB |
+| `fingerprint_stage_state` / `build_stage_state_record` / `resolve_stage_state_serialization` | Cheap sound fingerprint + lazy-serialized state records for multi-pass cycle detection (in `22-controls-cache.R`; replaced eager per-pass `serialize()`) | int |
 | `run_harmonize_layer_batch(dataset_dt, config, dataset_name)` | Run the **harmonize** stage (multi-pass) | PUB |
-| `run_rule_stage_layer_batch(dataset_dt, config, stage_name, dataset_name)` | Shared multi-pass driver for both | PUB |
+| `run_rule_stage_layer_batch(dataset_dt, config, stage_name, dataset_name, progress_pulse)` | Shared multi-pass driver for both. Optional `progress_pulse` callback fires once per pass for the live progress message (default `NULL`) | PUB |
 | `resolve_stage_multi_pass_controls` / `canonicalize_post_loop_annotation_columns` / `drop_empty_footnotes_column` | Multi-pass internals | int |
 
 ### `23-postpro_rule_engine/` (matching + application)
@@ -132,6 +138,17 @@ Rule files (clean/harmonize workbooks/CSVs) use six canonical columns from
 `column_source`, `value_source_raw`, `value_source`, `column_target`, `value_target_raw`,
 `value_target`.
 
+Files (all glob-sourced together by `source_postpro_scripts()`, so load order within the
+stage is immaterial): `23-schema-validation.R` (coerce/validate rules, `build_conditional_rule_dictionary`,
+`ensure_rule_referenced_columns`) · `23-matching-strategy.R` (value/key encoders, strategy
+config resolvers) · `23-matching-values.R` (`match_rule_target_condition_values`,
+`concatenate_existing_and_incoming_values`, `count_elementwise_value_changes`) ·
+`23-target-apply.R` (`apply_target_updates_with_strategy`) · `23-conditional-group.R`
+(`prepare_conditional_rule_group`, `apply_conditional_rule_group`) · `23-footnote-rules.R`
+(`apply_footnote_rules`) · `23-payload-application.R` (`prepare_rule_payload_execution_plan`,
+`apply_rule_payload`). The last five were split from three >500-line files under the
+refactoring guideline; splits are pure definition moves (behavior-identical).
+
 | Function | Purpose | |
 |---|---|---|
 | `validate_canonical_rules(rules_dt, dataset_dt, ...)` | Validate a rule file against the dataset | PUB |
@@ -139,6 +156,12 @@ Rule files (clean/harmonize workbooks/CSVs) use six canonical columns from
 | `coerce_rule_schema` / `encode_rule_match_key` / `match_rule_target_condition_values` / `apply_target_updates_with_strategy` / `build_conditional_rule_dictionary` / `apply_footnote_rules` | Wildcard `__ANY__`, match-key normalization, `last_rule_wins`/`concatenate` strategies | int |
 
 ### `24-standardize_units/` (unit conversion)
+
+Files: `24-standardize-engine.R` (`apply_standardize_rules`) · `24-standardize-aggregation.R`
+(duplicate-group aggregation + `attach_standardize_diagnostics`, split from the engine under
+the >500-line guideline) · `24-standardize-orchestration.R` (`run_standardize_units_layer_batch`)
+· `24-rules-setup.R` (load/prepare unit rules).
+
 | Function | Purpose | |
 |---|---|---|
 | `apply_standardize_rules(mapped_dt, prepared_rules_dt, unit_column, value_column, commodity_column)` | **Contract:** returns `list(data, matched_count, unmatched_count, matched_rule_counts)` — `matched_rule_counts` is a `data.table` | PUB |
@@ -147,6 +170,14 @@ Rule files (clean/harmonize workbooks/CSVs) use six canonical columns from
 | `aggregate_standardized_rows` / `extract_aggregated_rows` / `attach_standardize_diagnostics` / `build_standardize_layer_audit` | Aggregation + audit | int |
 
 ### `25-postpro_diagnostics/`
+
+Files: `25-preflight.R` · `25-diagnostics-output.R` (`build_postpro_diagnostics`,
+`persist_postpro_audit`) · `25-rule-summaries.R` (clean/harmonize summaries:
+`summarize_stage_rules`, `build_stage_rule_catalog_from_payloads`, `build_unmatched_rule_summary`)
+· `25-standardize-summaries.R` (standardize summaries: `build_standardize_rule_catalog`,
+`summarize_standardize_rules`, `build_unmatched_standardize_rule_summary`, split from
+`25-rule-summaries.R` under the >500-line guideline).
+
 | Function | Purpose | |
 |---|---|---|
 | `assert_postpro_preflight(preflight_result)` | Abort if preflight checks failed | PUB |

@@ -5,6 +5,12 @@
 #' @param config Named configuration list.
 #' @param stage_name Character scalar stage label (`clean` or `harmonize`).
 #' @param dataset_name Character scalar dataset identifier.
+#' @param progress_pulse Optional function of one character argument. When
+#'   supplied it is called once at the start of each rule-application pass with
+#'   a short status message (e.g. `"clean pass 2"`). Used by the orchestrator to
+#'   keep the post-processing progress bar lively during the multi-pass loop
+#'   without advancing it (the caller pulses with `amount = 0`). `NULL` (the
+#'   default) disables pulsing and preserves existing behavior.
 #' @return `data.table` with attributes `layer_diagnostics`, `layer_audit`,
 #'   `layer_last_rule_wins_overwrites`, and `layer_multi_pass_diagnostics`.
 #' @examples
@@ -15,12 +21,18 @@ run_rule_stage_layer_batch <- function(
   dataset_dt,
   config,
   stage_name,
-  dataset_name = get_pipeline_constants()$dataset_default_name
+  dataset_name = get_pipeline_constants()$dataset_default_name,
+  progress_pulse = NULL
 ) {
   checkmate::assert_data_frame(dataset_dt, min.rows = 0)
   checkmate::assert_list(config, min.len = 1)
   checkmate::assert_string(stage_name, min.chars = 1)
   checkmate::assert_string(dataset_name, min.chars = 1)
+  if (!is.null(progress_pulse)) {
+    checkmate::assert_function(progress_pulse)
+  }
+
+  pulse_message_template <- get_pipeline_constants()$progress$pulse_template
 
   validated_stage_name <- validate_postpro_stage_name(stage_name)
 
@@ -122,15 +134,23 @@ run_rule_stage_layer_batch <- function(
     "single_pass_completed"
   }
 
-  state_signatures <- list()
+  state_records <- list()
   state_pass_indexes <- integer(0)
 
   if (isTRUE(multi_pass_enabled)) {
-    state_signatures <- list(serialize_stage_state_signature(working_data))
+    state_records <- list(build_stage_state_record(working_data))
     state_pass_indexes <- c(0L)
   }
 
   for (pass_index in seq_len(max_stage_passes)) {
+    if (!is.null(progress_pulse)) {
+      progress_pulse(sprintf(
+        pulse_message_template,
+        validated_stage_name,
+        pass_index
+      ))
+    }
+
     pass_state <- list(
       data = working_data,
       audit_tables = list(),
@@ -204,7 +224,7 @@ run_rule_stage_layer_batch <- function(
     }
 
     pass_stop_reason <- "continued"
-    current_signature <- NULL
+    current_state_record <- NULL
     repeated_state_pass <- NA_integer_
 
     if (isTRUE(multi_pass_enabled)) {
@@ -215,11 +235,11 @@ run_rule_stage_layer_batch <- function(
         pass_stop_reason <- "converged_zero_change"
         stage_stop_reason <- pass_stop_reason
       } else {
-        current_signature <- serialize_stage_state_signature(pass_state$data)
+        current_state_record <- build_stage_state_record(pass_state$data)
         repeated_state_pass <- find_repeated_stage_state_pass(
-          state_signatures = state_signatures,
+          state_records = state_records,
           state_pass_indexes = state_pass_indexes,
-          candidate_signature = current_signature
+          candidate_record = current_state_record
         )
 
         if (!is.na(repeated_state_pass)) {
@@ -254,7 +274,7 @@ run_rule_stage_layer_batch <- function(
             ))
           }
         } else {
-          state_signatures[[length(state_signatures) + 1L]] <- current_signature
+          state_records[[length(state_records) + 1L]] <- current_state_record
           state_pass_indexes <- c(state_pass_indexes, as.integer(pass_index))
         }
       }
@@ -418,13 +438,16 @@ run_rule_stage_layer_batch <- function(
 #' @param dataset_dt Input dataset as data.frame/data.table.
 #' @param config Named configuration list.
 #' @param dataset_name Character scalar dataset identifier.
+#' @param progress_pulse Optional per-pass status callback forwarded to
+#' `run_rule_stage_layer_batch()`; `NULL` disables pulsing.
 #' @return clean `data.table` with attributes `layer_diagnostics` and
 #' `layer_audit`.
 #' @importFrom checkmate assert_data_frame assert_list assert_string
 run_cleaning_layer_batch <- function(
   dataset_dt,
   config,
-  dataset_name = get_pipeline_constants()$dataset_default_name
+  dataset_name = get_pipeline_constants()$dataset_default_name,
+  progress_pulse = NULL
 ) {
   checkmate::assert_data_frame(dataset_dt, min.rows = 0)
   checkmate::assert_list(config, min.len = 1)
@@ -434,7 +457,8 @@ run_cleaning_layer_batch <- function(
     dataset_dt = dataset_dt,
     config = config,
     stage_name = "clean",
-    dataset_name = dataset_name
+    dataset_name = dataset_name,
+    progress_pulse = progress_pulse
   ))
 }
 
@@ -444,13 +468,16 @@ run_cleaning_layer_batch <- function(
 #' @param dataset_dt Input dataset as data.frame/data.table.
 #' @param config Named configuration list.
 #' @param dataset_name Character scalar dataset identifier.
+#' @param progress_pulse Optional per-pass status callback forwarded to
+#' `run_rule_stage_layer_batch()`; `NULL` disables pulsing.
 #' @return harmonize `data.table` with attributes `layer_diagnostics` and
 #' `layer_audit`.
 #' @importFrom checkmate assert_data_frame assert_list assert_string
 run_harmonize_layer_batch <- function(
   dataset_dt,
   config,
-  dataset_name = get_pipeline_constants()$dataset_default_name
+  dataset_name = get_pipeline_constants()$dataset_default_name,
+  progress_pulse = NULL
 ) {
   checkmate::assert_data_frame(dataset_dt, min.rows = 0)
   checkmate::assert_list(config, min.len = 1)
@@ -460,6 +487,7 @@ run_harmonize_layer_batch <- function(
     dataset_dt = dataset_dt,
     config = config,
     stage_name = "harmonize",
-    dataset_name = dataset_name
+    dataset_name = dataset_name,
+    progress_pulse = progress_pulse
   ))
 }

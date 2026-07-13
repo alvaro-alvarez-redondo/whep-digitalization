@@ -60,7 +60,9 @@ normalize_for_comparison <- function(data_dt) {
     normalize_dt[, year := NULL]
   }
 
-  normalize_columns <- sort(names(normalize_dt))
+  # radix keeps the comparison locale-independent (the determinism contract);
+  # a bare sort() would follow the session LC_COLLATE
+  normalize_columns <- sort(names(normalize_dt), method = "radix")
 
   if (length(normalize_columns) == 0L) {
     return(normalize_dt)

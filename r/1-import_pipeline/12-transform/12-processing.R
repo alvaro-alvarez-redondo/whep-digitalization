@@ -105,39 +105,207 @@ process_files <- function(
   file_list_dt <- ensure_data_table(file_list_dt)
   file_rows_list <- lapply(indices, function(i) file_list_dt[i])
 
+  # One progress tick per file, used by BOTH branches so the import transform
+  # budget closes identically in sequential and parallel mode. The tick is
+  # NULL-guarded, so the perf-sensitive (progressor = NULL) paths are unchanged.
+  #
+  # Keep the future_lapply-over-indices structure: future.apply exports the
+  # `read_data_list` global to each worker once per session, which is cheap.
+  # Do NOT apply future.scheduling here (unlike the read stage) and do NOT
+  # switch to future_mapply over the data: both measured ~5-6x slower on the
+  # real dataset because they re-serialize the large read data per chunk. The
+  # transform stage is short (~10-15s) relative to the read, so default
+  # chunking's coarser relay is an acceptable trade for keeping it fast.
+  transform_message_template <- get_pipeline_constants()$progress$messages$import$transform_file
+  transform_one <- function(index) {
+    file_row <- file_rows_list[[index]]
+    df_wide <- read_data_list[[index]]
+
+    if (!is.null(progressor)) {
+      progressor(sprintf(transform_message_template, file_row[["file_name"]]))
+    }
+
+    transform_single_file(file_row, df_wide, config)
+  }
+
   if (use_parallel) {
     results <- future.apply::future_lapply(
       indices,
-      function(index) {
-        file_row <- file_rows_list[[index]]
-        df_wide <- read_data_list[[index]]
-
-        transform_single_file(file_row, df_wide, config)
-      },
+      transform_one,
       future.seed = NULL
     )
   } else {
-    results <- lapply(
-      indices,
-      function(index) {
-        file_row <- file_rows_list[[index]]
-        df_wide <- read_data_list[[index]]
-
-        if (!is.null(progressor)) {
-          progressor(sprintf(
-            "Import Pipeline Progress: transforming %s",
-            file_row[["file_name"]]
-          ))
-        }
-
-        transform_single_file(file_row, df_wide, config)
-      }
-    )
+    results <- lapply(indices, transform_one)
   }
 
   results <- Filter(Negate(is.null), results)
 
   return(results)
+}
+
+#' Read and transform all pipeline files in fused batches
+#' Executes read and transform as one unit of work per workbook batch: each
+#' batch (worker, when a non-sequential `future` plan is active) reads its
+#' workbooks via `read_workbook_batch()` and immediately transforms each file
+#' via `transform_single_file()`, returning only the per-file transform
+#' results and read errors. Output is identical to running
+#' `read_pipeline_files()` followed by `transform_files_list()`; what changes
+#' is the execution shape — the bulky intermediate read data never crosses
+#' back and forth between the main process and the workers, which removes the
+#' dominant main-process serialization cost of the two-stage arrangement.
+#' The per-batch closure captures only `config` and the batch's own metadata
+#' rows, so (unlike the two-stage transform) `future.scheduling` chunking is
+#' safe and keeps progress relaying steadily.
+#' @param file_list_dt `data.frame`/`data.table` of file metadata with at
+#'   least `file_path`, `file_name`, `yearbook`, and `commodity` columns.
+#' @param config Named configuration list with `column_required`.
+#' @param progressor Optional progress-reporting function; ticks once per file
+#'   for the read and once per file for the transform, exactly like the
+#'   two-stage path, so the `(2 * nfiles) + 4` import budget closes.
+#' @return Named list with `transformed` (`list(wide_raw, long_raw)`
+#'   satisfying the transform contract) and `errors` (character vector of
+#'   read errors).
+#' @examples
+#' \dontrun{
+#' read_transform_pipeline_files(file_list_dt, config)
+#' }
+read_transform_pipeline_files <- function(
+  file_list_dt,
+  config,
+  progressor = NULL
+) {
+  assert_or_abort(checkmate::check_data_frame(file_list_dt, min.cols = 1))
+  assert_or_abort(checkmate::check_names(
+    names(file_list_dt),
+    must.include = "file_path",
+    what = "names(file_list_dt)"
+  ))
+  assert_or_abort(checkmate::check_character(
+    file_list_dt$file_path,
+    any.missing = FALSE,
+    null.ok = TRUE
+  ))
+  assert_or_abort(checkmate::check_list(config, any.missing = FALSE))
+  assert_or_abort(checkmate::check_character(
+    config$column_required,
+    any.missing = FALSE,
+    min.len = 1
+  ))
+  if (!is.null(progressor)) {
+    assert_or_abort(checkmate::check_function(progressor))
+  }
+
+  if (nrow(file_list_dt) == 0) {
+    return(list(
+      transformed = build_empty_transform_result(),
+      errors = character(0)
+    ))
+  }
+
+  file_list_dt <- ensure_data_table(file_list_dt)
+  file_paths <- file_list_dt$file_path
+  batch_size <- resolve_import_workbook_batch_size(config)
+  workbook_batches <- split_workbook_batches(
+    file_paths = file_paths,
+    batch_size = batch_size
+  )
+
+  # Each batch carries its own metadata rows so workers receive only small
+  # objects; batch order and within-batch file order preserve the global file
+  # order, keeping the combined output identical to the two-stage path.
+  batch_objects <- lapply(workbook_batches, function(batch_paths) {
+    batch_indices <- match(batch_paths, file_paths)
+    list(
+      paths = batch_paths,
+      file_rows = lapply(batch_indices, function(i) file_list_dt[i])
+    )
+  })
+
+  use_parallel <- !inherits(future::plan(), "sequential") &&
+    length(batch_objects) > 1L
+
+  progress_messages <- get_pipeline_constants()$progress$messages$import
+  read_message_template <- progress_messages$read_file
+  transform_message_template <- progress_messages$transform_file
+
+  fused_one_batch <- function(batch) {
+    if (!is.null(progressor)) {
+      for (file_path in batch$paths) {
+        progressor(sprintf(read_message_template, fs::path_file(file_path)))
+      }
+    }
+
+    batch_read <- read_workbook_batch(
+      file_paths = batch$paths,
+      config = config
+    )
+
+    transforms <- vector("list", length(batch$paths))
+    for (k in seq_along(batch$paths)) {
+      file_row <- batch$file_rows[[k]]
+
+      if (!is.null(progressor)) {
+        progressor(sprintf(
+          transform_message_template,
+          file_row[["file_name"]]
+        ))
+      }
+
+      transforms[[k]] <- transform_single_file(
+        file_row,
+        batch_read$read_data_list[[k]],
+        config
+      )
+    }
+
+    return(list(transforms = transforms, errors = batch_read$errors))
+  }
+
+  if (use_parallel) {
+    batch_results <- future.apply::future_lapply(
+      batch_objects,
+      fused_one_batch,
+      future.seed = NULL,
+      future.scheduling = resolve_import_future_scheduling(config)
+    )
+  } else {
+    batch_results <- lapply(batch_objects, fused_one_batch)
+  }
+
+  results <- unlist(
+    lapply(batch_results, `[[`, "transforms"),
+    recursive = FALSE,
+    use.names = FALSE
+  )
+  results <- Filter(Negate(is.null), results)
+
+  errors <- unlist(
+    lapply(batch_results, `[[`, "errors"),
+    use.names = FALSE
+  )
+  if (is.null(errors)) {
+    errors <- character(0)
+  }
+
+  transformed <- if (length(results) == 0) {
+    build_empty_transform_result()
+  } else {
+    n_results <- length(results)
+    wide_list <- vector("list", n_results)
+    long_list <- vector("list", n_results)
+    for (i in seq_len(n_results)) {
+      wide_list[[i]] <- results[[i]][["wide_raw"]]
+      long_list[[i]] <- results[[i]][["long_raw"]]
+    }
+    list(
+      wide_raw = data.table::rbindlist(wide_list, use.names = TRUE, fill = TRUE),
+      long_raw = data.table::rbindlist(long_list, use.names = TRUE, fill = TRUE)
+    )
+  }
+
+  assert_transform_result_contract(transformed)
+
+  return(list(transformed = transformed, errors = errors))
 }
 
 #' Transform a list of files and combine results
