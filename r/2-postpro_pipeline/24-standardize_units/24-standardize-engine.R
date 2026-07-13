@@ -1,3 +1,24 @@
+# script: standardize units — engine
+# description: apply_standardize_rules, the core unit-conversion engine.
+#
+# The post-standardization aggregation helpers were split into the sibling
+# 24-standardize-aggregation.R (>500-line policy). Under the normal glob
+# sourcing (source_postpro_scripts) that sibling loads first — it sorts before
+# this file — so the guard below is a no-op there. It fires only when this file
+# is sourced standalone via an explicit path list, notably the read-only perf
+# harness perf/perf_pipeline/p9-orchestration.R (which lists
+# 24-standardize-engine.R but not its sibling), keeping the aggregation
+# functions available in that context too.
+if (!exists("aggregate_standardized_rows", mode = "function", inherits = TRUE)) {
+  source(
+    here::here(
+      "r", "2-postpro_pipeline", "24-standardize_units",
+      "24-standardize-aggregation.R"
+    ),
+    local = FALSE
+  )
+}
+
 #' Apply unit standardization rules to a dataset
 #' Converts numeric values based on unit standardization rules, handling
 #' numeric-prefix multipliers in unit strings and falling back to an

@@ -42,6 +42,16 @@ independently. They run *in addition to* per-stage suites.
 - **Stage 1/2/3:** new file in existing subdir is auto-discovered. New *subdirectory*
   must be added to the runner's subdir vector. Post-processing order is non-numeric:
   `20, 21, 23, 22, 24, 25` (rule engine before clean/harmonize).
+- **Splitting a file — perf-harness caveat:** the runtime + tests load stages by
+  glob, so a split file is auto-discovered there. But `perf/perf_pipeline/p9-orchestration.R`
+  (read-only) loads a **hard-coded subset** of pipeline files by explicit path for its
+  benchmarks, and `tests/perf/test-big-o-estimation.R` runs it (outside the autocode
+  suite). If you split a file that p9 lists, the split-off functions won't be found there.
+  Since p9 can't be edited, the original file must load its sibling with an
+  `if (!exists(<fn>)) source(<sibling>)` guard (see `24-standardize-engine.R` →
+  `24-standardize-aggregation.R`) — a no-op under the glob (the sibling sorts first),
+  effective under p9's standalone source. p9 currently lists only the `24-standardize-*`
+  and `21-*` postpro files, so only those need the guard.
 - **New stage runner:** update `constants$script_names$pipeline_stage_runners`.
 
 ## Determinism
