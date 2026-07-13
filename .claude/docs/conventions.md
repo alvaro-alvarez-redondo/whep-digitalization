@@ -141,6 +141,12 @@ call site instead. All format strings / labels / messages live in `constants$pro
 - `country` renamed to `polity` during import header normalization.
 - Unit prefixes: leading numeric multiplier (e.g. `"1000 head"`) folded into value.
 - Multi-pass cycle policy defaults to `"warn"`, max 10 passes, early convergence stop.
+- `View()` and scientific notation: RStudio's data viewer ignores `scipen` for numeric
+  columns, so the numeric `value` (numeric from the audit step on) shows as `1.9e+11`
+  there even though `options(scipen = 999)` is set. `run_pipeline(show_view = TRUE)`
+  routes through `build_pipeline_view_frame()`, which views a copy with numeric columns
+  rendered as fixed-notation strings (`as.character()` under `scipen = 999` — faithful,
+  no rounding/`e+`). For an ad-hoc `View()`, wrap the object the same way.
 
 ## Scratch files
 
