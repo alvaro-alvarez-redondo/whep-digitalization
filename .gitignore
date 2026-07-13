@@ -11,5 +11,4 @@
 Thumbs.db
 
 # Autocode / scratch
-perf/_*.R
 *.out

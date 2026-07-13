@@ -141,7 +141,7 @@ call site instead. All format strings / labels / messages live in `constants$pro
 ## Scratch files
 
 Delete run logs (`*.out`), one-off scripts before committing. `.gitignore` covers
-`perf/_*.R` and root `*.out`. Durable records go in `progress.md` / `results.tsv`.
+root `*.out`. Durable records go in `progress.md` / `results.tsv`.
 
 ## Maintaining these docs
 
