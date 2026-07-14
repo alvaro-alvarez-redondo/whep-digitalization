@@ -14,8 +14,11 @@ workbooks through four stages: general bootstrap → import → post-processing 
   rescanning the codebase. These are kept current.
 - **Deliver complete solutions.** Do not stop at partial progress. Iterate on complex
   refactors for efficiency, modularity, and clarity.
-- **One concern per change.** Keep diffs focused; clean temporary files before committing.
-  Durable results go in `.claude/progress.md` / `.claude/results.tsv`, not scratch logs.
+- **One concern per change.** Keep diffs focused. Delete every temporary file (run logs,
+  one-off scripts, benchmark harnesses, generated diagnostics) as soon as it is no longer
+  needed — never defer to commit time, and never commit one. See the temp-file policy in
+  [conventions.md](.claude/docs/conventions.md). Durable results go in
+  `.claude/progress.md` / `.claude/results.tsv`, not scratch logs.
 - **Tests are ground truth.** Every behavior change ships with tests. Never lower pass rate.
 - **Tone:** strict, technical. No filler.
 
@@ -51,8 +54,8 @@ source(here::here("r", "run_pipeline.R"), local = TRUE)
 run_pipeline(show_view = FALSE, pipeline_root = here::here("r"))
 ```
 
-Tests: use the command in `autocode.toml` `[metrics.tests]`. Do **not** use
-`tests/testthat/test_all.R` (broken). See [conventions.md](.claude/docs/conventions.md).
+Tests: use the command in `autocode.toml` `[metrics.tests]`. See
+[conventions.md](.claude/docs/conventions.md).
 
 ## Commands
 

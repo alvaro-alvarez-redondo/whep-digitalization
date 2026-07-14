@@ -23,8 +23,6 @@ tests/3-export_pipeline/   tests/testthat/scripts/
 scripts, and defines fixtures (`build_temp_dir`, `build_test_config`, `create_test_xlsx`,
 `build_sample_long_dt`). Per-stage test files source their stage runner.
 
-> **`tests/testthat/test_all.R` is broken** — references non-existent `tests/testthat/r/`.
-
 `tests/testthat/scripts/` holds **contract tests** that re-assert critical API shapes
 independently. They run *in addition to* per-stage suites.
 
@@ -138,10 +136,20 @@ call site instead. All format strings / labels / messages live in `constants$pro
   rendered as fixed-notation strings (`as.character()` under `scipen = 999` — faithful,
   no rounding/`e+`). For an ad-hoc `View()`, wrap the object the same way.
 
-## Scratch files
+## Temporary & scratch files
 
-Delete run logs (`*.out`), one-off scripts before committing. `.gitignore` covers
-root `*.out`. Durable records go in `progress.md` / `results.tsv`.
+**Delete every temporary file as soon as it is no longer needed** — do not defer cleanup
+to commit time, and never let a temp file survive the task that created it. This covers
+run logs (`*.out`), one-off scripts, profiling/benchmark harnesses, generated CSV/RDS
+diagnostics, and any intermediate artifact.
+
+- Prefer session-local temp dirs (`tempfile()` / `build_temp_dir()`) that the OS reclaims
+  automatically over writing scratch into the tracked tree.
+- If a scratch file must live in the tree while in use, name it so `.gitignore` catches it
+  (root `*.out`) and remove it the moment it stops being useful.
+- Never commit a temporary file. If one is committed by mistake, delete it in the same or
+  next change.
+- Durable records go in `progress.md` / `results.tsv`, not scratch logs.
 
 ## Maintaining these docs
 
