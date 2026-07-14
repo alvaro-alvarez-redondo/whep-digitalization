@@ -25,3 +25,6 @@ prefixes for order; keep scripts grouped by stage.
 ## Constraints
 
 No feature expansion. No API breaks unless modernization requires. Deterministic only.
+Delete any intermediate or scratch file a refactor pass creates as soon as it is no longer
+needed — leave no temporary artifacts behind (see the temp-file policy in
+[conventions.md](../docs/conventions.md)).

@@ -56,7 +56,10 @@ LOOP FOREVER:
 - **One idea per experiment.** Isolate variables.
 - **Simplicity wins.** Equal score, fewer lines → keep simpler version.
 - **Don't chase noise.** Look for >5% performance improvements.
-- **Clean scratch before committing.** Run logs and one-off scripts are temporary.
+- **Delete scratch as soon as it is no longer needed.** Run logs, one-off scripts, and
+  benchmark harnesses are temporary — remove each the moment it stops being useful, not
+  just before committing, and never commit one (see the temp-file policy in
+  `.claude/docs/conventions.md`).
 - **Never stop.** Do not pause to ask the human. If stuck: re-read code, try failed
   approaches with a twist, combine small improvements. Loop until stopped.
 
