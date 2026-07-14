@@ -815,7 +815,11 @@ testthat::test_that("clean footnote matched removal dominates overlapping unmatc
 
   testthat::expect_true(is.na(result$footnotes[[1]]))
   testthat::expect_true(diagnostics$multi_pass$converged)
-  testthat::expect_identical(diagnostics$multi_pass$passes_executed, 1L)
+  # Pass 1 removes the footnote (a real footnote-text change), so convergence
+  # requires a confirming pass 2 that produces no further changes. (Before the
+  # footnote change count was corrected, the removal was miscounted as zero
+  # changes and pass 1 declared premature convergence.)
+  testthat::expect_identical(diagnostics$multi_pass$passes_executed, 2L)
 })
 
 testthat::test_that("clean stage persists runtime cache artifact deterministically", {

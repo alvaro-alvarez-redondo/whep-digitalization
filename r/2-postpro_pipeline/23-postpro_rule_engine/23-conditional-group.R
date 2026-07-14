@@ -240,12 +240,25 @@ apply_conditional_rule_group <- function(
     )
   ][order(column_source, column_target, value_source_raw, value_target_raw)]
 
+  # A conditional group can rewrite the source column (value_source rewrites via
+  # `source_update_mask`) as well as the target column. Report each independently
+  # so a group whose only effect was a source rewrite marks the source column,
+  # not the target.
+  changed_columns <- character(0)
+  if (source_changed_value_count > 0L) {
+    changed_columns <- union(changed_columns, source_column)
+  }
+  if (target_changed_value_count > 0L) {
+    changed_columns <- union(changed_columns, target_column)
+  }
+
   return(list(
     data = dataset_dt,
     audit = audit_dt,
     overwrite_events = overwrite_events_dt,
     changed_value_count = as.integer(
       source_changed_value_count + target_changed_value_count
-    )
+    ),
+    changed_columns = changed_columns
   ))
 }

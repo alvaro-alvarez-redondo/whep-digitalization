@@ -94,9 +94,7 @@ apply_rule_payload <- function(
     current_data <- fn_result$data
     audit_tables[[length(audit_tables) + 1L]] <- fn_result$audit
     changed_value_count <- changed_value_count + fn_result$changed_value_count
-    if (fn_result$changed_value_count > 0L) {
-      changed_columns <- union(changed_columns, "footnotes")
-    }
+    changed_columns <- union(changed_columns, fn_result$changed_columns)
     if (nrow(fn_result$overwrite_events) > 0L) {
       overwrite_tables[[length(overwrite_tables) + 1L]] <-
         fn_result$overwrite_events
@@ -124,10 +122,7 @@ apply_rule_payload <- function(
       audit_tables[[length(audit_tables) + 1L]] <- group_result$audit
       changed_value_count <-
         changed_value_count + group_result$changed_value_count
-      if (group_result$changed_value_count > 0L) {
-        target_col <- grouped_dictionary[[group_index]]$column_target[[1]]
-        changed_columns <- union(changed_columns, target_col)
-      }
+      changed_columns <- union(changed_columns, group_result$changed_columns)
       if (nrow(group_result$overwrite_events) > 0L) {
         overwrite_tables[[length(overwrite_tables) + 1L]] <-
           group_result$overwrite_events

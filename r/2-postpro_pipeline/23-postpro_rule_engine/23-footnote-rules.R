@@ -19,7 +19,10 @@
 #' @param apply_match_normalization Logical scalar enabling match-key
 #'   normalization.
 #' @return Named list with `data` (mutated `data.table`), `audit` (audit table),
-#'   `overwrite_events` (overwrite events table), and `changed_value_count`.
+#'   `overwrite_events` (overwrite events table), `changed_value_count`, and
+#'   `changed_columns` (character vector of columns whose stored values actually
+#'   changed: `"footnotes"` when footnote text changed, plus each target column
+#'   the engine mutated).
 #' @examples
 #' \dontrun{
 #' apply_footnote_rules(dataset_dt, footnote_rules, "clean", "whep", "rules.xlsx", "2024-01-01T00:00:00Z")
@@ -53,7 +56,11 @@ apply_footnote_rules <- function(
     dataset_dt[, footnotes := NA_character_]
   }
 
-  footnote_values_before <- dataset_dt$footnotes
+  # Deep-copy: the footnotes column is later mutated in place during
+  # reconstruction, so a plain `dataset_dt$footnotes` binding would alias the
+  # live column and read back the post-mutation values, making the change count
+  # always zero for footnote-text edits.
+  footnote_values_before <- data.table::copy(dataset_dt$footnotes)
 
   # --- step 1: assign row identifiers ----------------------------------------
   dataset_dt[, row_id := .I]
@@ -197,6 +204,7 @@ apply_footnote_rules <- function(
   ]
   overwrite_event_tables <- list()
   total_target_changed_value_count <- 0L
+  changed_target_columns <- character(0)
 
   if (nrow(target_updates) > 0L) {
     target_columns <- unique(target_updates$column_target)
@@ -219,6 +227,10 @@ apply_footnote_rules <- function(
       if (nrow(update_result$overwrite_events) > 0L) {
         overwrite_event_tables[[length(overwrite_event_tables) + 1L]] <-
           update_result$overwrite_events
+      }
+
+      if (update_result$changed_value_count > 0L) {
+        changed_target_columns <- c(changed_target_columns, tc)
       }
 
       total_target_changed_value_count <-
@@ -341,6 +353,16 @@ apply_footnote_rules <- function(
     after_values = dataset_dt$footnotes
   )
 
+  # Report only the columns whose stored values actually changed: the footnote
+  # text (via its real change count, which excludes target-column edits) and each
+  # target column the engine mutated. A rule that rewrites only a target column
+  # while leaving the footnote text intact must not mark "footnotes" as changed.
+  changed_columns <- if (footnote_changed_value_count > 0L) {
+    union("footnotes", changed_target_columns)
+  } else {
+    changed_target_columns
+  }
+
   # --- step 9: generate audit records ----------------------------------------
   noop_mask <- matched_mask &
     ((!is.na(joined$footnote) & !is.na(joined$footnote_final) &
@@ -395,6 +417,7 @@ apply_footnote_rules <- function(
     overwrite_events = overwrite_events_dt,
     changed_value_count = as.integer(
       total_target_changed_value_count + footnote_changed_value_count
-    )
+    ),
+    changed_columns = changed_columns
   ))
 }
